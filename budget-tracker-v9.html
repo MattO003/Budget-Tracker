@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Year Financial Command Center</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 text-slate-800">
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useMemo } = React;
+
+        // --- ICONS ---
+        const Icons = {
+            FileSpreadsheet: ({ size = 24 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h2"/><path d="M8 17h2"/><path d="M14 13h2"/><path d="M14 17h2"/></svg>,
+            Copy: ({ size = 24 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>,
+            Check: ({ size = 24 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
+            Download: ({ size = 24 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>,
+            Upload: ({ size = 24 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>,
+            Save: ({ size = 24 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>,
+            Plus: ({ size = 24 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>,
+            Trash2: ({ size = 24 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>,
+            ChevronDown: ({ size = 24 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>,
+            ChevronUp: ({ size = 24 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>,
+            XCircle: ({ size = 24 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>,
+            TrendingDown: ({ size = 24 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline><polyline points="17 18 23 18 23 12"></polyline></svg>,
+            Calendar: ({ size = 24 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>,
+            Activity: ({ size = 24 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+        };
+
+        const MONTHS = [
+            "January", "February", "March", "April", "May", "June", 
+            "July", "August", "September", "October", "November", "December"
+        ];
+
+        // --- DEFAULTS ---
+        const defaultFixedCats = [
+            { id: 'rent', label: 'Rent' }, { id: 'trash', label: 'Trash' },
+            { id: 'amenities', label: 'Amenities' }, { id: 'carInsurance', label: 'Car Insurance' },
+            { id: 'internet', label: 'Internet' }, { id: 'rothIRA', label: 'Roth IRA' },
+            { id: 'additionalSavings', label: 'Additional Savings' }
+        ];
+        const defaultVarCats = [
+            { id: 'electric', label: 'Electric' }, { id: 'groceries', label: 'Groceries' },
+            { id: 'gas', label: 'Gas' }, { id: 'discretionary', label: 'Discretionary / Spending' }
+        ];
+
+        const getEmptyYear = () => {
+            const y = {};
+            for (let i = 0; i < 12; i++) {
+                y[i] = {
+                    income: 0,
+                    expenses: {}, 
+                    spent: {},
+                    transactions: {},
+                    debts: {}
+                };
+            }
+            return y;
+        };
+
+        const generateId = (name) => name.toLowerCase().replace(/[^a-z0-9]/g, '') + '_' + Date.now();
+
+        const MasterBudgetTracker = () => {
+            const fileInputRef = useRef(null);
+            const [lastSaved, setLastSaved] = useState(null);
+            const [expandedYears, setExpandedYears] = useState([new Date().getFullYear().toString()]);
+            const [expandedMonths, setExpandedMonths] = useState({}); 
+            const [activeTransactionCategory, setActiveTransactionCategory] = useState({ year: null, month: null, cat: null });
+
+            // --- DATA STORE ---
+            const [globalData, setGlobalData] = useState(() => {
+                const saved = localStorage.getItem('budgetTracker_v9');
+                if (saved) return JSON.parse(saved);
+                
+                const currentYear = new Date().getFullYear().toString();
+                return {
+                    categoryList: { fixed: defaultFixedCats, variable: defaultVarCats },
+                    globalDebts: [],
+                    years: { [currentYear]: getEmptyYear() }
+                };
+            });
+
+            // --- INPUT STATES ---
+            const [newItem, setNewItem] = useState({ desc: '', amount: '' });
+            const [newCatName, setNewCatName] = useState('');
+            const [newYearInput, setNewYearInput] = useState('');
+            const [newDebt, setNewDebt] = useState({ name: '', balance: '', rate: '' });
+            const [copiedID, setCopiedID] = useState(null);
+
+            // --- PERSISTENCE ---
+            useEffect(() => {
+                localStorage.setItem('budgetTracker_v9', JSON.stringify(globalData));
+                setLastSaved(new Date());
+            }, [globalData]);
+
+            // --- HELPERS & CALCS ---
+            const toggleYear = (year) => setExpandedYears(prev => prev.includes(year) ? prev.filter(y => y !== year) : [...prev, year]);
+
+            const toggleMonth = (year, monthIndex) => {
+                setExpandedMonths(prev => {
+                    const current = prev[year] || [];
+                    const updated = current.includes(monthIndex) ? current.filter(m => m !== monthIndex) : [...current, monthIndex];
+                    return { ...prev, [year]: updated };
+                });
+            };
+
+            const getCategorySpent = (monthData, catId) => {
+                if (!monthData?.transactions?.[catId]) return 0;
+                return monthData.transactions[catId].reduce((sum, t) => sum + t.amount, 0);
+            };
+
+            // Calculate metrics for any slice of data (a single month, a whole year, or all time)
+            const calculateMetrics = (monthsArray) => {
+                let stats = {
+                    totalIncome: 0,
+                    totalBudgeted: 0,
+                    totalSpent: 0,
+                    remainingCash: 0,
+                    projectedSavings: 0,
+                    debtPaid: 0
+                };
+
+                monthsArray.forEach(m => {
+                    stats.totalIncome += m.income || 0;
+                    
+                    // Fixed
+                    globalData.categoryList.fixed.forEach(c => {
+                        stats.totalBudgeted += (m.expenses[c.id] || 0);
+                        stats.totalSpent += (m.spent[c.id] || 0);
+                        if(c.id === 'rothIRA' || c.id === 'additionalSavings' || c.label.toLowerCase().includes('savings')) {
+                            stats.projectedSavings += (m.expenses[c.id] || 0);
+                        }
+                    });
+
+                    // Variable
+                    globalData.categoryList.variable.forEach(c => {
+                        stats.totalBudgeted += (m.expenses[c.id] || 0);
+                        stats.totalSpent += getCategorySpent(m, c.id);
+                    });
+
+                    // Debt
+                    globalData.globalDebts.forEach(d => {
+                        const payment = m.debts?.[d.id]?.payment || 0;
+                        stats.debtPaid += payment;
+                        stats.totalSpent += payment; // Debt payments count as spending
+                    });
+                });
+
+                stats.remainingCash = stats.totalIncome - stats.totalSpent;
+                stats.savingsRate = stats.totalIncome > 0 ? ((stats.projectedSavings / stats.totalIncome) * 100).toFixed(1) : "0.0";
+                
+                return stats;
+            };
+
+            // All Time Stats
+            const allTimeStats = useMemo(() => {
+                const allMonths = [];
+                Object.values(globalData.years).forEach(y => {
+                    Object.values(y).forEach(m => allMonths.push(m));
+                });
+                
+                const baseStats = calculateMetrics(allMonths);
+                const totalDebtLiability = globalData.globalDebts.reduce((sum, d) => sum + d.startBalance, 0);
+                const monthsCount = allMonths.length || 1;
+                
+                return {
+                    ...baseStats,
+                    avgMonthlySpend: baseStats.totalSpent / monthsCount,
+                    avgMonthlyIncome: baseStats.totalIncome / monthsCount,
+                    totalDebtLiability,
+                    debtToIncomeRatio: baseStats.totalIncome > 0 ? ((baseStats.debtPaid / baseStats.totalIncome) * 100).toFixed(1) : 0,
+                    runwayMonths: baseStats.projectedSavings / ((baseStats.totalSpent / monthsCount) || 1)
+                };
+            }, [globalData]);
+
+            // --- ACTIONS ---
+            const addYear = () => {
+                if (!newYearInput || globalData.years[newYearInput]) return;
+                setGlobalData(prev => ({ ...prev, years: { ...prev.years, [newYearInput]: getEmptyYear() } }));
+                setNewYearInput('');
+                setExpandedYears(prev => [...prev, newYearInput]);
+            };
+
+            const deleteYear = (year) => {
+                if (!confirm(`Delete ${year}?`)) return;
+                const newYears = { ...globalData.years };
+                delete newYears[year];
+                setGlobalData(prev => ({ ...prev, years: newYears }));
+            };
+
+            const addGlobalDebt = () => {
+                if (!newDebt.name || !newDebt.balance) return;
+                const id = generateId(newDebt.name);
+                setGlobalData(prev => ({
+                    ...prev,
+                    globalDebts: [...prev.globalDebts, { id, label: newDebt.name, startBalance: parseFloat(newDebt.balance), rate: parseFloat(newDebt.rate) || 0 }]
+                }));
+                setNewDebt({ name: '', balance: '', rate: '' });
+            };
+
+            const deleteGlobalDebt = (id) => {
+                if(!confirm("Delete debt?")) return;
+                setGlobalData(prev => ({ ...prev, globalDebts: prev.globalDebts.filter(d => d.id !== id) }));
+            };
+
+            const addCategory = (type, name) => {
+                if (!name.trim()) return;
+                const newId = generateId(name);
+                setGlobalData(prev => ({ ...prev, categoryList: { ...prev.categoryList, [type]: [...prev.categoryList[type], { id: newId, label: name }] } }));
+                setNewCatName('');
+            };
+
+            const deleteCategory = (type, id) => {
+                if(!confirm("Remove category?")) return;
+                setGlobalData(prev => ({ ...prev, categoryList: { ...prev.categoryList, [type]: prev.categoryList[type].filter(c => c.id !== id) } }));
+            };
+
+            const updateMonth = (year, monthIndex, updater) => {
+                setGlobalData(prev => ({
+                    ...prev,
+                    years: { ...prev.years, [year]: { ...prev.years[year], [monthIndex]: updater(prev.years[year][monthIndex]) } }
+                }));
+            };
+
+            const addTransaction = (year, monthIndex, catId) => {
+                if (!newItem.desc || !newItem.amount) return;
+                updateMonth(year, monthIndex, (m) => ({ ...m, transactions: { ...m.transactions, [catId]: [...(m.transactions[catId] || []), { id: Date.now(), desc: newItem.desc, amount: parseFloat(newItem.amount) }] } }));
+                setNewItem({ desc: '', amount: '' });
+            };
+
+            const removeTransaction = (year, monthIndex, catId, transId) => {
+                updateMonth(year, monthIndex, (m) => ({ ...m, transactions: { ...m.transactions, [catId]: m.transactions[catId].filter(t => t.id !== transId) } }));
+            };
+
+            const exportData = () => {
+                const blob = new Blob([JSON.stringify(globalData, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `financial-data.json`;
+                a.click();
+            };
+
+            const importData = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => { try { setGlobalData(JSON.parse(ev.target.result)); alert('Restored.'); } catch (err) { alert('Invalid file.'); } };
+                reader.readAsText(file);
+            };
+
+            // --- RENDER HELPERS ---
+            const SummaryBlock = ({ stats, title, colorClass = "bg-slate-900" }) => (
+                <div className={`${colorClass} text-white p-6 rounded-xl mt-4 shadow-lg border border-slate-700`}>
+                    <h3 className="font-bold text-slate-200 border-b border-slate-600 pb-2 mb-4 text-lg">{title}</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 text-center">
+                        <div><p className="text-xs text-slate-400 uppercase tracking-wider">Total Income</p><p className="text-xl font-bold text-green-400">${stats.totalIncome.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p></div>
+                        <div><p className="text-xs text-slate-400 uppercase tracking-wider">Total Budgeted</p><p className="text-xl font-bold text-blue-400">${stats.totalBudgeted.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p></div>
+                        <div><p className="text-xs text-slate-400 uppercase tracking-wider">Total Spent</p><p className="text-xl font-bold text-red-400">${stats.totalSpent.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p></div>
+                        <div><p className="text-xs text-slate-400 uppercase tracking-wider">Remaining Cash</p><p className={`text-xl font-bold ${stats.remainingCash>=0?'text-green-400':'text-red-400'}`}>${stats.remainingCash.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p></div>
+                        <div><p className="text-xs text-slate-400 uppercase tracking-wider">Proj. Savings</p><p className="text-xl font-bold text-purple-400">${stats.projectedSavings.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p></div>
+                        <div><p className="text-xs text-slate-400 uppercase tracking-wider">Savings Rate</p><p className="text-xl font-bold text-purple-400">{stats.savingsRate}%</p></div>
+                    </div>
+                </div>
+            );
+
+            const renderMonth = (year, monthIndex) => {
+                const data = globalData.years[year][monthIndex];
+                const isExpanded = (expandedMonths[year] || []).includes(monthIndex);
+                const stats = calculateMetrics([data]);
+
+                return (
+                    <div key={monthIndex} className="mb-4 bg-white rounded border border-gray-200 shadow-sm">
+                        <div onClick={() => toggleMonth(year, monthIndex)} className={`p-3 flex justify-between items-center cursor-pointer ${isExpanded ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                            <div className="flex items-center gap-2 font-bold text-gray-700">
+                                {isExpanded ? <Icons.ChevronUp size={18}/> : <Icons.ChevronDown size={18}/>}
+                                {MONTHS[monthIndex]}
+                            </div>
+                            <div className="text-sm flex gap-4 text-gray-500 hidden md:flex">
+                                <span>In: <b className="text-green-600">${stats.totalIncome.toFixed(0)}</b></span>
+                                <span>Out: <b className="text-red-600">${stats.totalSpent.toFixed(0)}</b></span>
+                                <span>Net: <b className={`${stats.remainingCash >= 0 ? 'text-green-600' : 'text-red-600'}`}>${stats.remainingCash.toFixed(0)}</b></span>
+                            </div>
+                        </div>
+
+                        {isExpanded && (
+                            <div className="p-4 border-t border-blue-100 space-y-6">
+                                <div className="flex items-center gap-2 bg-green-50 p-3 rounded">
+                                    <span className="font-bold text-green-800">Income:</span>
+                                    <input type="number" value={data.income} onChange={(e)=>updateMonth(year, monthIndex, m=>({...m, income: parseFloat(e.target.value)||0}))} className="border rounded px-2 py-1 font-bold text-green-700 w-32" />
+                                </div>
+                                <div className="grid md:grid-cols-2 gap-6">
+                                    {/* FIXED EXPENSES */}
+                                    <div>
+                                        <h4 className="font-bold border-b pb-1 mb-2 text-sm text-gray-600">Fixed Expenses</h4>
+                                        <table className="w-full text-xs">
+                                            <thead><tr className="text-left text-gray-400"><th>Cat</th><th>Bud</th><th>Spent</th></tr></thead>
+                                            <tbody>
+                                                {globalData.categoryList.fixed.map(c => (
+                                                    <tr key={c.id} className="border-b">
+                                                        <td className="py-2 flex items-center gap-1"><button onClick={()=>deleteCategory('fixed',c.id)} className="text-gray-300 hover:text-red-500"><Icons.XCircle size={12}/></button>{c.label}</td>
+                                                        <td><input type="number" value={data.expenses[c.id]||0} onChange={(e)=>updateMonth(year, monthIndex, m=>({...m, expenses: {...m.expenses, [c.id]: parseFloat(e.target.value)||0}}))} className="w-16 border rounded px-1"/></td>
+                                                        <td><input type="number" value={data.spent[c.id]||0} onChange={(e)=>updateMonth(year, monthIndex, m=>({...m, spent: {...m.spent, [c.id]: parseFloat(e.target.value)||0}}))} className="w-16 border rounded px-1"/></td>
+                                                    </tr>
+                                                ))}
+                                                <tr><td colSpan="3" className="pt-2"><div className="flex gap-1"><input type="text" placeholder="New Cat" className="border rounded w-full px-1" value={newCatName} onChange={e=>setNewCatName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addCategory('fixed',newCatName)}/><button onClick={()=>addCategory('fixed',newCatName)}><Icons.Plus size={14}/></button></div></td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    {/* VARIABLE EXPENSES */}
+                                    <div>
+                                        <h4 className="font-bold border-b pb-1 mb-2 text-sm text-gray-600">Variable Expenses</h4>
+                                        <div className="space-y-1">
+                                            {globalData.categoryList.variable.map(c => {
+                                                const b = data.expenses[c.id]||0; const s = getCategorySpent(data, c.id);
+                                                const open = activeTransactionCategory.year===year && activeTransactionCategory.month===monthIndex && activeTransactionCategory.cat===c.id;
+                                                return (
+                                                    <div key={c.id} className="border rounded p-2 text-xs bg-gray-50">
+                                                        <div className="flex justify-between items-center">
+                                                            <div className="flex gap-1"><button onClick={()=>deleteCategory('variable',c.id)} className="text-gray-300 hover:text-red-500"><Icons.XCircle size={12}/></button><button onClick={()=>setActiveTransactionCategory(open?{year:null}:{year,month:monthIndex,cat:c.id})} className="font-bold hover:text-blue-600">{c.label}</button></div>
+                                                            <div className="flex gap-2"><span>Bud:<input type="number" value={b} onChange={(e)=>updateMonth(year,monthIndex,m=>({...m,expenses:{...m.expenses,[c.id]:parseFloat(e.target.value)||0}}))} className="w-12 border rounded px-1 ml-1"/></span><span className={s > b ? 'text-red-500 font-bold' : 'text-green-500'}>${s}</span></div>
+                                                        </div>
+                                                        {open && (
+                                                            <div className="bg-white p-2 mt-1 border-t">
+                                                                <div className="flex gap-1 mb-1"><input type="text" placeholder="Desc" className="border rounded w-full" value={newItem.desc} onChange={e=>setNewItem({...newItem,desc:e.target.value})}/><input type="number" placeholder="$" className="w-12 border rounded" value={newItem.amount} onChange={e=>setNewItem({...newItem,amount:e.target.value})} onKeyDown={e=>e.key==='Enter'&&addTransaction(year,monthIndex,c.id)}/><button onClick={()=>addTransaction(year,monthIndex,c.id)} className="bg-green-500 text-white px-1 rounded"><Icons.Plus size={12}/></button></div>
+                                                                <ul>{(data.transactions[c.id]||[]).map(t=>(<li key={t.id} className="flex justify-between border-b py-1"><span>{t.desc}</span><span>${t.amount} <button onClick={()=>removeTransaction(year,monthIndex,c.id,t.id)} className="text-red-400"><Icons.Trash2 size={10}/></button></span></li>))}</ul>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                            <div className="flex gap-1 mt-2"><input type="text" placeholder="New Cat" className="border rounded w-full px-1 text-xs" value={newCatName} onChange={e=>setNewCatName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addCategory('variable',newCatName)}/><button onClick={()=>addCategory('variable',newCatName)}><Icons.Plus size={14}/></button></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {/* DEBT */}
+                                <div className="bg-red-50 p-3 rounded border border-red-100">
+                                    <h4 className="text-red-800 font-bold text-sm mb-2">Debt Tracker</h4>
+                                    <table className="w-full text-xs">
+                                        <thead><tr className="text-left text-red-900"><th>Liability</th><th>Current Balance</th><th>Payment (Flow)</th></tr></thead>
+                                        <tbody>
+                                            {globalData.globalDebts.map(d => {
+                                                const dv = data.debts?.[d.id] || { balance: d.startBalance, payment: 0 };
+                                                return (
+                                                    <tr key={d.id} className="border-b border-red-200">
+                                                        <td className="py-1 font-medium">{d.label} <span className="text-gray-400">({d.rate}%)</span></td>
+                                                        <td><input type="number" value={dv.balance} onChange={(e)=>updateMonth(year,monthIndex,m=>({...m,debts:{...m.debts,[d.id]:{...dv,balance:parseFloat(e.target.value)||0}}}))} className="border border-red-200 rounded px-1 w-20"/></td>
+                                                        <td><input type="number" value={dv.payment} onChange={(e)=>updateMonth(year,monthIndex,m=>({...m,debts:{...m.debts,[d.id]:{...dv,payment:parseFloat(e.target.value)||0}}}))} className="border border-red-200 rounded px-1 w-20 font-bold text-red-700"/></td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <SummaryBlock stats={stats} title={`${MONTHS[monthIndex]} Financial Summary`} />
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
+            const renderYear = (year) => {
+                const yearData = globalData.years[year];
+                const isOpen = expandedYears.includes(year);
+                const stats = calculateMetrics(Object.values(yearData));
+
+                return (
+                    <div key={year} className="mb-8 border-2 border-slate-300 rounded-xl overflow-hidden bg-slate-50">
+                        <div onClick={() => toggleYear(year)} className="bg-slate-800 text-white p-4 flex justify-between items-center cursor-pointer hover:bg-slate-700 transition-colors">
+                            <h2 className="text-2xl font-bold flex items-center gap-2"><Icons.Calendar size={24}/> {year}</h2>
+                            <button onClick={(e)=>{e.stopPropagation();deleteYear(year)}} className="text-slate-500 hover:text-red-400"><Icons.Trash2 size={20}/></button>
+                        </div>
+                        {isOpen && (
+                            <div className="p-4">
+                                {MONTHS.map((_, i) => renderMonth(year, i))}
+                                <SummaryBlock stats={stats} title={`${year} Annual Summary`} />
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
+            return (
+                <div className="w-full max-w-7xl mx-auto p-4 min-h-screen pb-24 font-sans">
+                    <div className="flex flex-col lg:flex-row justify-between items-center mb-8 gap-4">
+                        <div>
+                            <h1 className="text-4xl font-extrabold text-slate-800">Financial Command Center</h1>
+                            <p className="text-slate-500 text-sm mt-1">{lastSaved && `Saved at ${lastSaved.toLocaleTimeString()}`}</p>
+                        </div>
+                        <div className="flex gap-2">
+                            <button onClick={exportData} className="bg-white border px-3 py-2 rounded text-sm flex gap-2"><Icons.Download size={16}/> Backup</button>
+                            <button onClick={()=>fileInputRef.current.click()} className="bg-purple-600 text-white px-3 py-2 rounded text-sm flex gap-2"><Icons.Upload size={16}/> Restore</button>
+                            <input ref={fileInputRef} type="file" onChange={importData} className="hidden" />
+                        </div>
+                    </div>
+
+                    {/* DEBT DASHBOARD */}
+                    <div className="bg-white rounded-xl shadow border border-slate-200 p-6 mb-8">
+                        <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2 mb-4"><Icons.TrendingDown className="text-red-500"/> Liability Dashboard</h2>
+                        <div className="flex flex-wrap gap-2 items-end bg-gray-50 p-3 rounded mb-4">
+                            <input type="text" placeholder="Debt Name" className="flex-grow border rounded px-2 py-1.5" value={newDebt.name} onChange={e=>setNewDebt({...newDebt,name:e.target.value})}/>
+                            <input type="number" placeholder="Balance" className="w-32 border rounded px-2 py-1.5" value={newDebt.balance} onChange={e=>setNewDebt({...newDebt,balance:e.target.value})}/>
+                            <input type="number" placeholder="APR %" className="w-20 border rounded px-2 py-1.5" value={newDebt.rate} onChange={e=>setNewDebt({...newDebt,rate:e.target.value})}/>
+                            <button onClick={addGlobalDebt} className="bg-red-600 text-white px-4 py-2 rounded h-9 flex items-center mb-0.5"><Icons.Plus size={20}/></button>
+                        </div>
+                        <div className="space-y-2">
+                            {globalData.globalDebts.map(d => (
+                                <div key={d.id} className="flex justify-between items-center bg-red-50 p-2 rounded border border-red-100">
+                                    <span className="font-bold text-red-900">{d.label} <span className="text-xs bg-red-200 px-1 rounded ml-2">{d.rate}% APR</span></span>
+                                    <div className="flex items-center gap-4"><span className="text-sm">Start: <b>${d.startBalance.toLocaleString()}</b></span><button onClick={()=>deleteGlobalDebt(d.id)} className="text-red-400 hover:text-red-600"><Icons.Trash2 size={16}/></button></div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* YEARS */}
+                    <div className="space-y-8">{Object.keys(globalData.years).sort().map(year => renderYear(year))}</div>
+                    <div className="my-8 flex gap-2 justify-center">
+                        <input type="number" placeholder="YYYY" className="border-2 border-slate-300 rounded px-4 py-2 w-32 text-center font-bold" value={newYearInput} onChange={e=>setNewYearInput(e.target.value)} />
+                        <button onClick={addYear} className="bg-slate-800 text-white px-6 py-2 rounded font-bold">Add Year</button>
+                    </div>
+
+                    {/* LIFETIME SUMMARY */}
+                    <div className="bg-gradient-to-br from-slate-900 to-black text-white p-8 rounded-2xl shadow-2xl border border-slate-700">
+                        <h2 className="text-3xl font-extrabold mb-8 pb-4 border-b border-slate-800 text-center flex items-center justify-center gap-3"><Icons.Activity size={32}/> Lifetime Financial Summary</h2>
+                        
+                        {/* Core Stats */}
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8 text-center mb-10">
+                            <div><p className="text-xs text-slate-400 uppercase tracking-widest mb-1">Total Earned</p><p className="text-2xl font-bold text-green-400">${allTimeStats.totalIncome.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p></div>
+                            <div><p className="text-xs text-slate-400 uppercase tracking-widest mb-1">Total Budgeted</p><p className="text-2xl font-bold text-blue-400">${allTimeStats.totalBudgeted.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p></div>
+                            <div><p className="text-xs text-slate-400 uppercase tracking-widest mb-1">Total Spent</p><p className="text-2xl font-bold text-red-400">${allTimeStats.totalSpent.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p></div>
+                            <div><p className="text-xs text-slate-400 uppercase tracking-widest mb-1">Remaining Cash</p><p className={`text-2xl font-bold ${allTimeStats.remainingCash>=0?'text-green-400':'text-red-400'}`}>${allTimeStats.remainingCash.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p></div>
+                            <div><p className="text-xs text-slate-400 uppercase tracking-widest mb-1">Total Saved</p><p className="text-2xl font-bold text-purple-400">${allTimeStats.projectedSavings.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p></div>
+                            <div><p className="text-xs text-slate-400 uppercase tracking-widest mb-1">Savings Rate</p><p className="text-2xl font-bold text-purple-400">{allTimeStats.savingsRate}%</p></div>
+                        </div>
+
+                        {/* Bonus Stats */}
+                        <div className="bg-slate-800 rounded-xl p-6 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+                            <div><p className="text-xs text-slate-400 uppercase">Avg Monthly Spend</p><p className="text-xl font-bold text-orange-400">${allTimeStats.avgMonthlySpend.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p></div>
+                            <div><p className="text-xs text-slate-400 uppercase">Debt-to-Income</p><p className="text-xl font-bold text-red-400">{allTimeStats.debtToIncomeRatio}%</p></div>
+                            <div><p className="text-xs text-slate-400 uppercase">Total Debt Paid</p><p className="text-xl font-bold text-green-400">${allTimeStats.debtPaid.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p></div>
+                            <div><p className="text-xs text-slate-400 uppercase">Financial Runway</p><p className="text-xl font-bold text-blue-400">{allTimeStats.runwayMonths.toFixed(1)} Months</p></div>
+                        </div>
+                    </div>
+
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<MasterBudgetTracker />);
+    </script>
+</body>
+</html>
