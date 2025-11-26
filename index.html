@@ -3,8 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Financial OS v16 (Autofill & Stability)</title>
+    <title>Financial OS v16.2 (Stable)</title>
     
+    <script>
+        window.onerror = function(message, source, lineno, colno, error) {
+            alert("Error: " + message + "\nLine: " + lineno);
+        };
+    </script>
+
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -119,12 +125,10 @@
             const [inputs, setInputs] = useState({ year: '', cat: '', itemDesc: '', itemAmt: '', assetName: '', assetVal: '', debtName: '', debtBal: '', debtRate: '', goalName: '', goalTarget: '', incName: '', incAmt: '', varCat: '', saveCat: '' });
             const [debtSimExtra, setDebtSimExtra] = useState(0);
 
-            // --- AUTH & SYNC (FIXED WHITE SCREEN) ---
             useEffect(() => {
                 const unsubscribe = auth.onAuthStateChanged(u => {
                     if (u) {
                         setUser(u);
-                        // Loading remains true until data snapshot fires
                     } else {
                         setUser(null);
                         setData(null);
@@ -145,16 +149,14 @@
                             docRef.set(DEFAULT_DATA);
                             setData(DEFAULT_DATA);
                         }
-                        setLoading(false); // Data is ready
+                        setLoading(false);
                     }, (err) => {
-                        console.error(err);
-                        setLoading(false); // Stop loading even if error, so we don't get stuck
+                        setLoading(false);
                     });
                     return unsubscribe;
                 }
             }, [user]);
 
-            // Auto-Save
             useEffect(() => {
                 if (user && data && !loading) {
                     const timer = setTimeout(() => {
@@ -165,11 +167,7 @@
             }, [data, user, loading]);
 
             const login = () => auth.signInWithPopup(googleProvider).catch(e => alert(e.message));
-            const logout = () => {
-                auth.signOut();
-                setUser(null);
-                setData(null); 
-            };
+            const logout = () => { auth.signOut(); setUser(null); setData(null); };
 
             // --- CALCS ---
             const getCatSpent = (m, catId) => m.transactions?.[catId]?.reduce((s, t) => s + t.amount, 0) || 0;
@@ -205,6 +203,7 @@
 
             // --- ACTIONS ---
             const updateMonth = (y, mIdx, cb) => setData(d => ({ ...d, years: { ...d.years, [y]: { ...d.years[y], [mIdx]: cb(d.years[y][mIdx]) } } }));
+            
             const addCategory = (type, name) => {
                 if(!name) return;
                 const id = generateId(name);
@@ -213,29 +212,27 @@
                 if(type === 'variable') setInputs(prev => ({...prev, varCat: ''}));
                 if(type === 'savings') setInputs(prev => ({...prev, saveCat: ''}));
             };
+            
             const deleteCategory = (type, id) => {
                 if(confirm("Delete category?")) setData(d => ({...d, categories: {...d.categories, [type]: d.categories[type].filter(c => c.id !== id)}}));
             };
+            
             const deleteYear = (year) => {
                 if(confirm(`Delete ${year}?`)) {
                     setData(d => { const newYears = { ...d.years }; delete newYears[year]; return { ...d, years: newYears }; });
                 }
             };
 
-            // NEW: AUTOFILL FUNCTION
             const autofillBudget = (year, sourceMonthIdx) => {
                 if(!confirm(`Copy budget values from ${MONTHS[sourceMonthIdx]} to ALL other months in ${year}? Existing spent/income values will remain.`)) return;
-                
                 const sourceExpenses = data.years[year][sourceMonthIdx].expenses;
-                
                 setData(d => {
                     const updatedYear = { ...d.years[year] };
                     for (let i = 0; i < 12; i++) {
                         if (i !== sourceMonthIdx) {
-                            // Keep existing transactions/spent, only overwrite budget targets (expenses)
                             updatedYear[i] = {
                                 ...updatedYear[i],
-                                expenses: { ...sourceExpenses } // Copy the budget numbers
+                                expenses: { ...sourceExpenses }
                             };
                         }
                     }
@@ -246,7 +243,6 @@
             // --- VIEWS ---
             if (loading) return <div className="h-screen flex items-center justify-center bg-gray-100 flex-col"><div className="loader mb-4"></div><p className="text-slate-500 font-bold animate-pulse">Syncing Data...</p></div>;
 
-            // CRITICAL GUARD: Ensure data exists before rendering main app
             if (user && !data) return <div className="h-screen flex items-center justify-center bg-gray-100 flex-col"><div className="loader mb-4"></div><p className="text-slate-500 font-bold animate-pulse">Loading Profile...</p></div>;
 
             if (!user) {
@@ -292,9 +288,9 @@
                                                              className="p-3 flex justify-between items-center bg-gray-50 cursor-pointer hover:bg-gray-100">
                                                             <span className="font-bold text-gray-700 w-24">{monthName}</span>
                                                             <div className="flex gap-4 text-sm text-gray-500 hidden md:flex">
-                                                                <span>In: <b className="text-green-600">${mStats.income.toFixed(0)}</b></span>
-                                                                <span>Out: <b className="text-red-600">${mStats.spent.toFixed(0)}</b></span>
-                                                                <span>Rem: <b className={mStats.remaining >= 0 ? 'text-green-600' : 'text-red-600'}>${mStats.remaining.toFixed(0)}</b></span>
+                                                                <span>In: <b className="text-green-600">${Number(mStats.income).toFixed(0)}</b></span>
+                                                                <span>Out: <b className="text-red-600">${Number(mStats.spent).toFixed(0)}</b></span>
+                                                                <span>Rem: <b className={mStats.remaining >= 0 ? 'text-green-600' : 'text-red-600'}>${Number(mStats.remaining).toFixed(0)}</b></span>
                                                             </div>
                                                             {isExpanded ? <Icons.ChevronUp/> : <Icons.ChevronDown/>}
                                                         </div>
@@ -354,4 +350,438 @@
                                                                             <h4 className="text-xs font-bold text-purple-800 uppercase mb-2">Savings & Investments</h4>
                                                                             <div className="space-y-1">
                                                                                 {data.categories.savings?.map(c => (
-                                                                                    <div key={c.id} className="flex justify-between
+                                                                                    <div key={c.id} className="flex justify-between items-center text-xs">
+                                                                                        <span className="flex items-center gap-1 group">{c.label} <button onClick={()=>deleteCategory('savings', c.id)} className="opacity-0 group-hover:opacity-100 text-purple-300 hover:text-red-400"><Icons.Trash/></button></span>
+                                                                                        <div className="flex gap-1">
+                                                                                            <input type="number" className="w-16 border rounded px-1" value={mData.expenses[c.id]||''} placeholder="Goal" onChange={e=>updateMonth(year, mIdx, m => ({...m, expenses: {...m.expenses, [c.id]: parseFloat(e.target.value)||0}}))} />
+                                                                                            <input type="number" className="w-16 border rounded px-1" value={mData.spent[c.id]||''} placeholder="Saved" onChange={e=>updateMonth(year, mIdx, m => ({...m, spent: {...m.spent, [c.id]: parseFloat(e.target.value)||0}}))} />
+                                                                                        </div>
+                                                                                    </div>
+                                                                                ))}
+                                                                                 <div className="pt-2 flex gap-1">
+                                                                                     <input placeholder="New Savings Cat" className="w-full text-xs border rounded px-1" value={inputs.saveCat} onChange={e=>setInputs({...inputs, saveCat:e.target.value})}/>
+                                                                                     <button onClick={()=>{addCategory('savings', inputs.saveCat); setInputs({...inputs, saveCat:''})}} className="bg-purple-200 text-purple-800 rounded px-2"><Icons.Plus/></button>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div>
+                                                                            <h4 className="font-bold text-sm text-gray-600 border-b mb-2">Variable Expenses</h4>
+                                                                            <div className="space-y-2">
+                                                                                {data.categories.variable.map(c => {
+                                                                                    const spent = getCatSpent(mData, c.id);
+                                                                                    const bud = mData.expenses[c.id] || 0;
+                                                                                    const remaining = bud - spent;
+                                                                                    const isOpen = activeTransactionCategory?.year === year && activeTransactionCategory?.month === mIdx && activeTransactionCategory?.cat === c.id;
+                                                                                    
+                                                                                    return (
+                                                                                        <div key={c.id} className="text-xs border rounded bg-gray-50 p-2">
+                                                                                            <div className="flex justify-between items-center mb-1">
+                                                                                                <div className="flex gap-1 items-center">
+                                                                                                    <span onClick={()=>setActiveTransactionCategory(isOpen ? null : {year, month: mIdx, cat: c.id})} className="font-bold cursor-pointer text-blue-600 hover:underline">{c.label}</span>
+                                                                                                    <button onClick={()=>deleteCategory('variable', c.id)} className="text-gray-300 hover:text-red-400"><Icons.Trash/></button>
+                                                                                                </div>
+                                                                                                <div className="flex gap-2 items-center">
+                                                                                                    <input type="number" className="w-16 border rounded px-1 h-6 text-right" value={mData.expenses[c.id]||''} placeholder="Bud" onChange={e=>updateMonth(year, mIdx, m => ({...m, expenses: {...m.expenses, [c.id]: parseFloat(e.target.value)||0}}))} />
+                                                                                                    <div className="flex flex-col items-end w-16">
+                                                                                                        <span className="text-[10px] text-gray-500">Spent: ${Number(spent).toFixed(2)}</span>
+                                                                                                        <span className={`text-[10px] font-bold ${remaining < 0 ? 'text-red-500' : 'text-green-600'}`}>Left: ${Number(remaining).toFixed(2)}</span>
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                            {isOpen && (
+                                                                                                <div className="bg-white p-2 mt-1 border-t">
+                                                                                                    <div className="flex gap-1 mb-2">
+                                                                                                        <input placeholder="Item" className="border rounded w-full px-1" value={inputs.itemDesc} onChange={e=>setInputs({...inputs, itemDesc: e.target.value})} />
+                                                                                                        <input type="number" placeholder="$" className="border rounded w-12 px-1" value={inputs.itemAmt} onChange={e=>setInputs({...inputs, itemAmt: e.target.value})} />
+                                                                                                        <button onClick={()=>{
+                                                                                                            if(inputs.itemDesc && inputs.itemAmt){
+                                                                                                                const t = {id: Date.now(), desc: inputs.itemDesc, amount: parseFloat(inputs.itemAmt)};
+                                                                                                                updateMonth(year, mIdx, m => ({...m, transactions: {...m.transactions, [c.id]: [...(m.transactions[c.id]||[]), t]}}));
+                                                                                                                setInputs({...inputs, itemDesc:'', itemAmt:''});
+                                                                                                            }
+                                                                                                        }} className="bg-green-500 text-white rounded px-1"><Icons.Plus/></button>
+                                                                                                    </div>
+                                                                                                    {mData.transactions[c.id]?.map(t => (
+                                                                                                        <div key={t.id} className="flex justify-between border-b py-1">
+                                                                                                            <span>{t.desc}</span>
+                                                                                                            <div className="flex gap-2"><span>${t.amount}</span><button onClick={()=>updateMonth(year, mIdx, m => ({...m, transactions: {...m.transactions, [c.id]: m.transactions[c.id].filter(x=>x.id!==t.id)}}))} className="text-red-400"><Icons.Trash/></button></div>
+                                                                                                        </div>
+                                                                                                    ))}
+                                                                                                </div>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    )
+                                                                                })}
+                                                                                <div className="pt-2 flex gap-1">
+                                                                                     <input placeholder="New Variable Cat" className="w-full text-xs border rounded px-1" value={inputs.varCat} onChange={e=>setInputs({...inputs, varCat:e.target.value})}/>
+                                                                                     <button onClick={()=>addCategory('variable', inputs.varCat)} className="bg-gray-200 rounded px-2"><Icons.Plus/></button>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="bg-red-50 p-3 rounded border border-red-100">
+                                                                            <h4 className="text-xs font-bold text-red-800 uppercase mb-2">Debt Payments</h4>
+                                                                            {data.debts.map(d => (
+                                                                                <div key={d.id} className="flex justify-between items-center text-xs mb-1">
+                                                                                    <span>{d.label}</span>
+                                                                                    <input type="number" placeholder="Paid" className="w-16 border border-red-200 rounded px-1" 
+                                                                                           value={mData.debts?.[d.id]?.payment || ''}
+                                                                                           onChange={e=>updateMonth(year, mIdx, m => ({...m, debts: {...m.debts, [d.id]: {...(m.debts?.[d.id]||{}), payment: parseFloat(e.target.value)||0}}}))} />
+                                                                                </div>
+                                                                            ))}
+                                                                            {data.debts.length===0 && <span className="text-xs text-gray-400 italic">Add debts in Net Worth tab</span>}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                <SummaryBlock stats={mStats} title={`${monthName} Summary`} />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                            <SummaryBlock stats={yearStats} title={`${year} Annual Summary`} colorClass="bg-slate-800" />
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                        <div className="flex justify-center gap-2">
+                            <input type="number" placeholder="YYYY" className="border px-2 py-1 rounded w-24" id="newYearInput" />
+                            <button onClick={()=>{
+                                const y = document.getElementById('newYearInput').value;
+                                if(y && !data.years[y]) setData(d => ({...d, years: {...d.years, [y]: getEmptyYear()}}));
+                            }} className="bg-slate-800 text-white px-4 py-1 rounded">Add Year</button>
+                        </div>
+                    </div>
+                );
+            };
+
+            const renderNetWorth = () => {
+                const totalAssets = data.assets.reduce((sum, a) => sum + a.value, 0);
+                const totalLiabilities = data.debts.reduce((sum, d) => sum + d.balance, 0);
+
+                return (
+                    <div className="grid md:grid-cols-2 gap-8">
+                        <div className="bg-white p-6 rounded-xl shadow-sm border-t-4 border-green-500">
+                            <h2 className="text-2xl font-bold text-slate-800 mb-4 flex justify-between">
+                                <span>Assets</span>
+                                <span className="text-green-600">${totalAssets.toLocaleString()}</span>
+                            </h2>
+                            <div className="space-y-3 mb-6">
+                                {data.assets.map(a => (
+                                    <div key={a.id} className="flex justify-between items-center p-3 bg-green-50 rounded border border-green-100">
+                                        <span className="font-bold text-green-900">{a.label}</span>
+                                        <div className="flex items-center gap-3">
+                                            <span className="font-mono">${a.value.toLocaleString()}</span>
+                                            <button onClick={()=>setData(prev=>({...prev, assets: prev.assets.filter(x=>x.id!==a.id)}))} className="text-green-400 hover:text-green-700"><Icons.Trash/></button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="flex gap-2 items-end bg-gray-50 p-3 rounded">
+                                <div className="flex-grow"><label className="text-xs font-bold text-gray-400">Asset Name</label><input className="w-full border p-1 rounded" value={inputs.assetName} onChange={e=>setInputs({...inputs, assetName:e.target.value})}/></div>
+                                <div className="w-24"><label className="text-xs font-bold text-gray-400">Value</label><input type="number" className="w-full border p-1 rounded" value={inputs.assetVal} onChange={e=>setInputs({...inputs, assetVal:e.target.value})}/></div>
+                                <button onClick={()=>{
+                                    if(inputs.assetName && inputs.assetVal) {
+                                        setData(d => ({...d, assets: [...d.assets, {id: Date.now(), label: inputs.assetName, value: parseFloat(inputs.assetVal), type: 'Asset'}]}));
+                                        setInputs({...inputs, assetName:'', assetVal:''});
+                                    }
+                                }} className="bg-green-600 text-white p-2 rounded"><Icons.Plus/></button>
+                            </div>
+                        </div>
+
+                        <div className="bg-white p-6 rounded-xl shadow-sm border-t-4 border-red-500">
+                            <h2 className="text-2xl font-bold text-slate-800 mb-4 flex justify-between">
+                                <span>Liabilities</span>
+                                <span className="text-red-600">${totalLiabilities.toLocaleString()}</span>
+                            </h2>
+                            <div className="space-y-3 mb-6">
+                                {data.debts.map(d => (
+                                    <div key={d.id} className="flex justify-between items-center p-3 bg-red-50 rounded border border-red-100">
+                                        <span className="font-bold text-red-900">{d.label} <span className="text-xs font-normal text-red-700 bg-red-200 px-1 rounded ml-2">{d.rate}% APR</span></span>
+                                        <div className="flex items-center gap-3">
+                                            <span className="font-mono">${d.balance.toLocaleString()}</span>
+                                            <button onClick={()=>setData(prev=>({...prev, debts: prev.debts.filter(x=>x.id!==d.id)}))} className="text-red-400 hover:text-red-700"><Icons.Trash/></button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="flex gap-2 items-end bg-gray-50 p-3 rounded">
+                                <div className="flex-grow"><label className="text-xs font-bold text-gray-400">Debt Name</label><input className="w-full border p-1 rounded" value={inputs.debtName} onChange={e=>setInputs({...inputs, debtName:e.target.value})}/></div>
+                                <div className="w-24"><label className="text-xs font-bold text-gray-400">Balance</label><input type="number" className="w-full border p-1 rounded" value={inputs.debtBal} onChange={e=>setInputs({...inputs, debtBal:e.target.value})}/></div>
+                                <div className="w-16"><label className="text-xs font-bold text-gray-400">APR %</label><input type="number" className="w-full border p-1 rounded" value={inputs.debtRate} onChange={e=>setInputs({...inputs, debtRate:e.target.value})}/></div>
+                                <button onClick={()=>{
+                                    if(inputs.debtName && inputs.debtBal) {
+                                        setData(d => ({...d, debts: [...d.debts, {id: generateId(inputs.debtName), label: inputs.debtName, balance: parseFloat(inputs.debtBal), rate: parseFloat(inputs.debtRate)||0}]}));
+                                        setInputs({...inputs, debtName:'', debtBal:'', debtRate:''});
+                                    }
+                                }} className="bg-red-600 text-white p-2 rounded"><Icons.Plus/></button>
+                            </div>
+                        </div>
+
+                        <div className="md:col-span-2 bg-slate-900 text-white p-8 rounded-2xl text-center shadow-xl">
+                            <h3 className="text-gray-400 uppercase tracking-widest text-sm mb-2">Total Net Worth</h3>
+                            <div className="text-5xl font-extrabold flex justify-center items-center gap-4">
+                                ${(totalAssets - totalLiabilities).toLocaleString()}
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            const renderAnalytics = () => {
+                const availableYears = Object.keys(data.years).sort();
+                
+                const getFilteredMonths = () => {
+                    let monthsToCalc = [];
+                    if (analyticsYear === 'All Time') {
+                         Object.values(data.years).forEach(y => Object.values(y).forEach(m => monthsToCalc.push(m)));
+                    } else {
+                        const yData = data.years[analyticsYear];
+                        if (yData) {
+                             if (analyticsMonth === 'Whole Year') {
+                                 Object.values(yData).forEach(m => monthsToCalc.push(m));
+                             } else {
+                                 const mIdx = MONTHS.indexOf(analyticsMonth);
+                                 if (yData[mIdx]) monthsToCalc.push(yData[mIdx]);
+                             }
+                        }
+                    }
+                    return monthsToCalc;
+                };
+
+                const activeMonths = getFilteredMonths();
+                const totalStats = calculateStats(activeMonths);
+
+                const categoryBreakdown = (() => {
+                    let breakdown = {};
+                    activeMonths.forEach(m => {
+                        data.categories.fixed.forEach(c => {
+                            const val = (m.spent[c.id] || m.expenses[c.id] || 0); 
+                            breakdown[c.label] = (breakdown[c.label] || 0) + val;
+                        });
+                        data.categories.variable.forEach(c => {
+                            const val = getCatSpent(m, c.id) || m.expenses[c.id] || 0; 
+                            breakdown[c.label] = (breakdown[c.label] || 0) + val;
+                        });
+                        data.debts.forEach(d => {
+                            breakdown[d.label] = (breakdown[d.label] || 0) + (m.debts?.[d.id]?.payment || 0);
+                        });
+                    });
+                    return Object.entries(breakdown).sort((a,b) => b[1] - a[1]).filter(x => x[1] > 0);
+                })();
+
+                const totalBreakdownSpend = categoryBreakdown.reduce((sum, x) => sum + x[1], 0);
+                let accumulatedPercent = 0;
+                const chartSegments = categoryBreakdown.map((cat, i) => {
+                    const percent = (cat[1] / totalBreakdownSpend) * 100;
+                    const segment = { ...cat, percent, start: accumulatedPercent, color: COLORS[i % COLORS.length] };
+                    accumulatedPercent += percent;
+                    return segment;
+                });
+
+                const income = totalStats.income || 1;
+                const spentPct = Math.min((totalStats.spent / income) * 100, 100);
+                const savedPct = Math.min((totalStats.saved / income) * 100, 100 - spentPct);
+                const remainPct = Math.max(0, 100 - spentPct - savedPct);
+
+                const monthCount = Math.max(1, activeMonths.length);
+                const avgMonthlySpend = totalStats.spent / monthCount;
+                const dti = totalStats.income > 0 ? ((totalStats.debtPaid / totalStats.income) * 100).toFixed(1) : 0;
+                const totalAssets = data.assets.reduce((sum, a) => sum + a.value, 0);
+                const totalLiabilities = data.debts.reduce((sum, d) => sum + d.balance, 0);
+                const runway = avgMonthlySpend > 0 ? ((totalAssets - totalLiabilities) / avgMonthlySpend).toFixed(1) : "0.0";
+
+                return (
+                    <div className="space-y-8">
+                        <div className="bg-white p-4 rounded-xl shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
+                            <div className="flex items-center gap-2 font-bold text-slate-700">
+                                <Icons.Filter/> <span>Analytics Filter:</span>
+                            </div>
+                            <div className="flex gap-4">
+                                <select className="border p-2 rounded bg-gray-50 font-bold text-sm" value={analyticsYear} onChange={e => { setAnalyticsYear(e.target.value); setAnalyticsMonth('Whole Year'); }}>
+                                    <option value="All Time">All Time</option>
+                                    {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+                                </select>
+                                <select className="border p-2 rounded bg-gray-50 font-bold text-sm" value={analyticsMonth} onChange={e => setAnalyticsMonth(e.target.value)} disabled={analyticsYear === 'All Time'}>
+                                    <option value="Whole Year">Whole Year</option>
+                                    {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
+                                </select>
+                            </div>
+                        </div>
+
+                        <SummaryBlock stats={totalStats} title={`${analyticsYear} - ${analyticsMonth} Summary`} />
+                        
+                        <div className="bg-slate-800 rounded-xl p-6 grid grid-cols-2 md:grid-cols-4 gap-6 text-center text-white">
+                            <div><p className="text-xs text-slate-400 uppercase">Avg Monthly Spend</p><p className="text-xl font-bold text-orange-400">${avgMonthlySpend.toLocaleString(undefined, {maximumFractionDigits:0})}</p></div>
+                            <div><p className="text-xs text-slate-400 uppercase">Debt-to-Income</p><p className="text-xl font-bold text-red-400">{dti}%</p></div>
+                            <div><p className="text-xs text-slate-400 uppercase">Total Debt Paid</p><p className="text-xl font-bold text-green-400">${totalStats.debtPaid.toLocaleString(undefined, {maximumFractionDigits:0})}</p></div>
+                            <div><p className="text-xs text-slate-400 uppercase">Financial Runway</p><p className="text-xl font-bold text-blue-400">{runway} Months</p></div>
+                        </div>
+
+                        <div className="grid lg:grid-cols-2 gap-8">
+                            <div className="bg-white p-6 rounded-xl shadow-sm">
+                                <h3 className="font-bold mb-6 text-gray-700 border-b pb-2 flex gap-2 items-center"><Icons.Chart/> Spending Breakdown</h3>
+                                {chartSegments.length === 0 ? <p className="text-gray-400 italic text-center py-8">No data available for this period.</p> : (
+                                    <div className="flex flex-col md:flex-row items-center gap-8">
+                                        <div className="relative w-48 h-48 flex-shrink-0">
+                                            <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
+                                                {chartSegments.map((seg, i) => (
+                                                    <circle key={i} cx="50" cy="50" r="40" fill="none" stroke={seg.color} strokeWidth="20"
+                                                        strokeDasharray={`${(seg.percent / 100) * 251.2} 251.2`}
+                                                        strokeDashoffset={-((seg.start / 100) * 251.2)}
+                                                        className="chart-segment" />
+                                                ))}
+                                            </svg>
+                                            <div className="absolute inset-0 flex items-center justify-center flex-col">
+                                                <span className="text-xs text-gray-400">Total</span>
+                                                <span className="font-bold text-gray-800">${totalBreakdownSpend.toLocaleString(undefined, {maximumFractionDigits:0})}</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex-grow w-full">
+                                            <div className="space-y-2">
+                                                {chartSegments.slice(0, 5).map((seg, i) => (
+                                                    <div key={i} className="flex justify-between text-xs items-center">
+                                                        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full" style={{background: seg.color}}></div><span>{seg[0]}</span></div>
+                                                        <span className="font-mono font-bold text-gray-600">${seg[1].toLocaleString()}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="bg-white p-6 rounded-xl shadow-sm">
+                                <h3 className="font-bold mb-4 text-gray-600">Income Breakdown</h3>
+                                <div className="h-6 bg-gray-100 rounded-full overflow-hidden flex border border-gray-200">
+                                    <div className="h-full bg-red-400" style={{width: `${spentPct}%`}}></div>
+                                    <div className="h-full bg-purple-400" style={{width: `${savedPct}%`}}></div>
+                                    <div className="h-full bg-green-400" style={{width: `${remainPct}%`}}></div>
+                                </div>
+                                <div className="flex justify-between text-xs mt-2 text-gray-500 font-bold">
+                                    <span>Spent ({spentPct.toFixed(0)}%)</span>
+                                    <span>Saved ({savedPct.toFixed(0)}%)</span>
+                                    <span>Left ({remainPct.toFixed(0)}%)</span>
+                                </div>
+                                 <div className="mt-8 pt-6 border-t border-gray-100">
+                                    <h3 className="font-bold mb-4 text-gray-600">Net Worth</h3>
+                                    <div className="text-4xl font-bold text-blue-600">${(totalAssets - totalLiabilities).toLocaleString()}</div>
+                                    <p className="text-sm text-gray-400">Assets - Liabilities</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            const renderStrategy = () => {
+                const sortedDebts = [...data.debts].sort((a,b) => a.balance - b.balance);
+                let simMonths = 0;
+                let tempDebts = sortedDebts.map(d => ({...d}));
+                
+                while(tempDebts.some(d => d.balance > 0) && simMonths < 360) {
+                    simMonths++;
+                    let monthlyExtra = parseFloat(debtSimExtra) || 0;
+                    tempDebts.forEach(d => {
+                        if(d.balance > 0) {
+                            const interest = (d.balance * (d.rate/100)) / 12;
+                            d.balance += interest;
+                            let minPay = Math.max(d.balance * 0.02, 25);
+                            if(d.balance < minPay) minPay = d.balance;
+                            d.balance -= minPay;
+                        }
+                    });
+                    let target = tempDebts.find(d => d.balance > 0);
+                    if(target) target.balance -= monthlyExtra;
+                }
+
+                return (
+                    <div className="grid md:grid-cols-2 gap-8">
+                        <div className="bg-white p-6 rounded-xl shadow-sm">
+                            <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-2">Debt Payoff Simulator</h2>
+                            <div className="mb-6">
+                                <label className="block text-sm font-bold text-gray-700 mb-1">Extra Monthly Payment:</label>
+                                <input type="number" className="border-2 border-blue-200 rounded px-3 py-2 w-full font-bold text-lg" value={debtSimExtra} onChange={e=>setDebtSimExtra(e.target.value)} />
+                            </div>
+                            <div className="bg-blue-50 p-4 rounded-lg text-center">
+                                <p className="text-blue-900 text-sm font-bold uppercase">Debt Free In</p>
+                                <p className="text-3xl font-bold text-blue-600 my-1">{simMonths} Months</p>
+                            </div>
+                        </div>
+                        <div className="bg-white p-6 rounded-xl shadow-sm">
+                            <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-2">Savings Goals Buckets</h2>
+                            <div className="space-y-4 mb-6">
+                                {data.savingsGoals.map(g => {
+                                    const pct = Math.min((g.saved / g.target) * 100, 100);
+                                    return (
+                                        <div key={g.id}>
+                                            <div className="flex justify-between text-sm mb-1 font-bold text-gray-700">
+                                                <span>{g.label}</span>
+                                                <span>${g.saved} / ${g.target}</span>
+                                            </div>
+                                            <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
+                                                <div className="h-full bg-purple-500 progress-bar" style={{width: `${pct}%`}}></div>
+                                            </div>
+                                            <div className="flex justify-end mt-1">
+                                                <button onClick={()=>{
+                                                    const amt = parseFloat(prompt("Add amount:"));
+                                                    if(amt) setData(d => ({...d, savingsGoals: d.savingsGoals.map(x=>x.id===g.id ? {...x, saved: x.saved+amt} : x)}));
+                                                }} className="text-xs text-blue-500 hover:underline mr-2">+ Add Cash</button>
+                                                <button onClick={()=>setData(d => ({...d, savingsGoals: d.savingsGoals.filter(x=>x.id!==g.id)}))} className="text-xs text-red-400 hover:underline">Remove</button>
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                            <div className="flex gap-2 items-end bg-gray-50 p-3 rounded">
+                                <div className="flex-grow"><label className="text-xs font-bold text-gray-400">Goal</label><input className="w-full border p-1 rounded" value={inputs.goalName} onChange={e=>setInputs({...inputs, goalName:e.target.value})}/></div>
+                                <div className="w-24"><label className="text-xs font-bold text-gray-400">Target</label><input type="number" className="w-full border p-1 rounded" value={inputs.goalTarget} onChange={e=>setInputs({...inputs, goalTarget:e.target.value})}/></div>
+                                <button onClick={()=>{
+                                    if(inputs.goalName && inputs.goalTarget) {
+                                        setData(d => ({...d, savingsGoals: [...d.savingsGoals, {id: Date.now(), label: inputs.goalName, target: parseFloat(inputs.goalTarget), saved: 0}]}));
+                                        setInputs({...inputs, goalName:'', goalTarget:''});
+                                    }
+                                }} className="bg-purple-600 text-white p-2 rounded"><Icons.Plus/></button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            return (
+                <div className="max-w-7xl mx-auto p-4 pb-20">
+                    <div className="flex flex-col md:flex-row justify-between items-center mb-6">
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Financial OS <span className="text-sm font-normal text-slate-400 ml-2">v16.2</span></h1>
+                            {user && <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">{user.displayName}</span>}
+                        </div>
+                        <div className="flex gap-2 mt-4 md:mt-0">
+                            {user && <button onClick={logout} className="bg-white border text-red-500 px-3 py-1.5 rounded text-sm flex gap-2 hover:bg-gray-50"><Icons.LogOut/> Sign Out</button>}
+                        </div>
+                    </div>
+
+                    <div className="flex gap-1 bg-white p-1 rounded-lg shadow-sm mb-6 overflow-x-auto">
+                        {['budget', 'net worth', 'analytics', 'strategy'].map(t => (
+                            <button key={t} onClick={()=>setActiveTab(t)} 
+                                className={`px-4 py-2 rounded-md font-bold text-sm capitalize whitespace-nowrap transition-colors ${activeTab===t ? 'bg-slate-800 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
+                                {t}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="min-h-screen">
+                        {activeTab === 'budget' && renderBudget()}
+                        {activeTab === 'net worth' && renderNetWorth()}
+                        {activeTab === 'analytics' && renderAnalytics()}
+                        {activeTab === 'strategy' && renderStrategy()}
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<FinancialOS />);
+    </script>
+</body>
+</html>
