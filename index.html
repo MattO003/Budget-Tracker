@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Financial OS v15 (Analytics Upgrade)</title>
+    <title>Financial OS v15.1 (Decimal Fix)</title>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -76,7 +76,7 @@
             return y;
         };
 
-        // Default Data Structure
+        // Default Data
         const DEFAULT_DATA = {
             categories: {
                 fixed: [{ id: 'rent', label: 'Rent' }, { id: 'internet', label: 'Internet' }],
@@ -112,16 +112,12 @@
             const [expandedYears, setExpandedYears] = useState([new Date().getFullYear().toString()]);
             const [expandedMonths, setExpandedMonths] = useState({});
             const [activeTransactionCategory, setActiveTransactionCategory] = useState(null);
-            
-            // Analytics Filter States
             const [analyticsYear, setAnalyticsYear] = useState('All Time');
             const [analyticsMonth, setAnalyticsMonth] = useState('Whole Year');
 
-            // Input States
             const [inputs, setInputs] = useState({ year: '', cat: '', itemDesc: '', itemAmt: '', assetName: '', assetVal: '', debtName: '', debtBal: '', debtRate: '', goalName: '', goalTarget: '', incName: '', incAmt: '', varCat: '', saveCat: '' });
             const [debtSimExtra, setDebtSimExtra] = useState(0);
 
-            // --- AUTH & SYNC ---
             useEffect(() => {
                 const unsubscribe = auth.onAuthStateChanged(u => {
                     if (u) {
@@ -168,7 +164,7 @@
                 setData(null); 
             };
 
-            // --- CALCS & METRICS ---
+            // --- CALCS ---
             const getCatSpent = (m, catId) => m.transactions?.[catId]?.reduce((s, t) => s + t.amount, 0) || 0;
             const getMonthIncome = (m) => m.income.reduce((s, i) => s + i.amount, 0);
 
@@ -202,7 +198,6 @@
 
             // --- ACTIONS ---
             const updateMonth = (y, mIdx, cb) => setData(d => ({ ...d, years: { ...d.years, [y]: { ...d.years[y], [mIdx]: cb(d.years[y][mIdx]) } } }));
-            
             const addCategory = (type, name) => {
                 if(!name) return;
                 const id = generateId(name);
@@ -211,23 +206,16 @@
                 if(type === 'variable') setInputs(prev => ({...prev, varCat: ''}));
                 if(type === 'savings') setInputs(prev => ({...prev, saveCat: ''}));
             };
-
             const deleteCategory = (type, id) => {
                 if(confirm("Delete category?")) setData(d => ({...d, categories: {...d.categories, [type]: d.categories[type].filter(c => c.id !== id)}}));
             };
-
             const deleteYear = (year) => {
-                if(confirm(`Are you sure you want to delete all data for ${year}? This cannot be undone.`)) {
-                    setData(d => {
-                        const newYears = { ...d.years };
-                        delete newYears[year];
-                        return { ...d, years: newYears };
-                    });
+                if(confirm(`Delete ${year}?`)) {
+                    setData(d => { const newYears = { ...d.years }; delete newYears[year]; return { ...d, years: newYears }; });
                 }
             };
 
             // --- VIEWS ---
-
             if (loading) return <div className="h-screen flex items-center justify-center bg-gray-100"><div className="loader"></div></div>;
 
             if (!user) {
@@ -284,7 +272,6 @@
                                                             <div className="p-4 bg-white">
                                                                 <div className="grid lg:grid-cols-2 gap-6 mb-6">
                                                                     <div className="space-y-6">
-                                                                        {/* INCOME */}
                                                                         <div className="bg-green-50 p-3 rounded border border-green-100">
                                                                             <h4 className="text-xs font-bold text-green-800 uppercase mb-2">Income Sources</h4>
                                                                             {mData.income.map((inc, idx) => (
@@ -306,7 +293,6 @@
                                                                             </div>
                                                                         </div>
 
-                                                                        {/* FIXED EXPENSES */}
                                                                         <div>
                                                                             <h4 className="font-bold text-sm text-gray-600 border-b mb-2">Fixed Expenses</h4>
                                                                             <div className="space-y-1">
@@ -328,7 +314,6 @@
                                                                     </div>
 
                                                                     <div className="space-y-6">
-                                                                        {/* SAVINGS */}
                                                                         <div className="bg-purple-50 p-3 rounded border border-purple-100">
                                                                             <h4 className="text-xs font-bold text-purple-800 uppercase mb-2">Savings & Investments</h4>
                                                                             <div className="space-y-1">
@@ -348,7 +333,6 @@
                                                                             </div>
                                                                         </div>
 
-                                                                        {/* VARIABLE EXPENSES */}
                                                                         <div>
                                                                             <h4 className="font-bold text-sm text-gray-600 border-b mb-2">Variable Expenses</h4>
                                                                             <div className="space-y-2">
@@ -368,8 +352,8 @@
                                                                                                 <div className="flex gap-2 items-center">
                                                                                                     <input type="number" className="w-16 border rounded px-1 h-6 text-right" value={mData.expenses[c.id]||''} placeholder="Bud" onChange={e=>updateMonth(year, mIdx, m => ({...m, expenses: {...m.expenses, [c.id]: parseFloat(e.target.value)||0}}))} />
                                                                                                     <div className="flex flex-col items-end w-16">
-                                                                                                        <span className="text-[10px] text-gray-500">Spent: ${spent}</span>
-                                                                                                        {/* FIX: DECIMAL PRECISION */}
+                                                                                                        {/* FIX: Added .toFixed(2) to Spent */}
+                                                                                                        <span className="text-[10px] text-gray-500">Spent: ${spent.toFixed(2)}</span>
                                                                                                         <span className={`text-[10px] font-bold ${remaining < 0 ? 'text-red-500' : 'text-green-600'}`}>Left: ${remaining.toFixed(2)}</span>
                                                                                                     </div>
                                                                                                 </div>
@@ -405,7 +389,6 @@
                                                                             </div>
                                                                         </div>
 
-                                                                        {/* DEBT PAYMENTS */}
                                                                         <div className="bg-red-50 p-3 rounded border border-red-100">
                                                                             <h4 className="text-xs font-bold text-red-800 uppercase mb-2">Debt Payments</h4>
                                                                             {data.debts.map(d => (
@@ -449,7 +432,6 @@
 
                 return (
                     <div className="grid md:grid-cols-2 gap-8">
-                        {/* ASSETS */}
                         <div className="bg-white p-6 rounded-xl shadow-sm border-t-4 border-green-500">
                             <h2 className="text-2xl font-bold text-slate-800 mb-4 flex justify-between">
                                 <span>Assets</span>
@@ -478,7 +460,6 @@
                             </div>
                         </div>
 
-                        {/* LIABILITIES */}
                         <div className="bg-white p-6 rounded-xl shadow-sm border-t-4 border-red-500">
                             <h2 className="text-2xl font-bold text-slate-800 mb-4 flex justify-between">
                                 <span>Liabilities</span>
@@ -508,7 +489,6 @@
                             </div>
                         </div>
 
-                        {/* TOTAL */}
                         <div className="md:col-span-2 bg-slate-900 text-white p-8 rounded-2xl text-center shadow-xl">
                             <h3 className="text-gray-400 uppercase tracking-widest text-sm mb-2">Total Net Worth</h3>
                             <div className="text-5xl font-extrabold flex justify-center items-center gap-4">
@@ -520,18 +500,15 @@
             };
 
             const renderAnalytics = () => {
-                // FIX: FILTER LOGIC
                 const availableYears = Object.keys(data.years).sort();
                 
                 const getFilteredMonths = () => {
                     let monthsToCalc = [];
-                    // 1. Filter by Year
                     if (analyticsYear === 'All Time') {
                          Object.values(data.years).forEach(y => Object.values(y).forEach(m => monthsToCalc.push(m)));
                     } else {
                         const yData = data.years[analyticsYear];
                         if (yData) {
-                             // 2. Filter by Month (if specific year selected)
                              if (analyticsMonth === 'Whole Year') {
                                  Object.values(yData).forEach(m => monthsToCalc.push(m));
                              } else {
@@ -587,7 +564,6 @@
 
                 return (
                     <div className="space-y-8">
-                        {/* FILTER BAR */}
                         <div className="bg-white p-4 rounded-xl shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
                             <div className="flex items-center gap-2 font-bold text-slate-700">
                                 <Icons.Filter/> <span>Analytics Filter:</span>
@@ -746,7 +722,7 @@
                 <div className="max-w-7xl mx-auto p-4 pb-20">
                     <div className="flex flex-col md:flex-row justify-between items-center mb-6">
                         <div className="flex items-center gap-3">
-                            <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Financial OS <span className="text-sm font-normal text-slate-400 ml-2">v15 Analytics</span></h1>
+                            <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Financial OS <span className="text-sm font-normal text-slate-400 ml-2">v15.1</span></h1>
                             {user && <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">{user.displayName}</span>}
                         </div>
                         <div className="flex gap-2 mt-4 md:mt-0">
