@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Financial OS v18 (Net Worth Logs)</title>
+    <title>Financial OS v18.1 (Mobile Fix & Safety)</title>
     
     <script>
         window.onerror = function(message, source, lineno, colno, error) {
@@ -403,16 +403,16 @@
                                                                                             <div className="flex gap-1"><input type="number" className="w-16 border rounded px-1" value={mData.expenses[c.id]||''} placeholder="Bud" onChange={e=>updateMonth(year, mIdx, m => ({...m, expenses: {...m.expenses, [c.id]: parseFloat(e.target.value)||0}}))} /><input type="number" className="w-16 border rounded px-1" value={mData.spent[c.id]||''} placeholder="Pay" onChange={e=>updateMonth(year, mIdx, m => ({...m, spent: {...m.spent, [c.id]: parseFloat(e.target.value)||0}}))} /></div>
                                                                                         </div>
                                                                                     ))}
-                                                                                    <div className="flex gap-1 mt-1 pl-2">
+                                                                                    <div className="flex flex-col sm:flex-row gap-2 mt-2 pl-2">
                                                                                         <input placeholder="New Item" className="w-full text-[10px] border rounded px-1" value={inputs.targetGroup === group.id ? inputs.newItem : ''} onChange={e=>setInputs({...inputs, newItem: e.target.value, targetGroup: group.id})}/>
-                                                                                        <button onClick={()=>{ if(inputs.targetGroup === group.id) addItemToGroup('fixed', group.id, inputs.newItem); }} className="bg-gray-200 rounded px-1 text-[10px]"><Icons.Plus/></button>
+                                                                                        <button onClick={()=>{ if(inputs.targetGroup === group.id) addItemToGroup('fixed', group.id, inputs.newItem); }} className="bg-gray-200 rounded px-1 text-[10px] w-full sm:w-auto"><Icons.Plus/></button>
                                                                                     </div>
                                                                                 </div>
                                                                             </div>
                                                                         ))}
-                                                                        <div className="flex gap-1 mt-4">
+                                                                        <div className="flex flex-col sm:flex-row gap-2 mt-4">
                                                                             <input placeholder="New Fixed Group" className="w-full text-xs border rounded px-1 font-bold" value={inputs.newGroup} onChange={e=>setInputs({...inputs, newGroup: e.target.value})}/>
-                                                                            <button onClick={()=>addGroup('fixed', inputs.newGroup)} className="bg-slate-700 text-white rounded px-2 text-xs">Add Group</button>
+                                                                            <button onClick={()=>addGroup('fixed', inputs.newGroup)} className="bg-slate-700 text-white rounded px-2 py-1 text-xs w-full sm:w-auto">Add Group</button>
                                                                         </div>
                                                                     </div>
                                                                 </div>
@@ -432,16 +432,16 @@
                                                                                             <div className="flex gap-1"><input type="number" className="w-16 border rounded px-1" value={mData.expenses[c.id]||''} placeholder="Goal" onChange={e=>updateMonth(year, mIdx, m => ({...m, expenses: {...m.expenses, [c.id]: parseFloat(e.target.value)||0}}))} /><input type="number" className="w-16 border rounded px-1" value={mData.spent[c.id]||''} placeholder="Saved" onChange={e=>updateMonth(year, mIdx, m => ({...m, spent: {...m.spent, [c.id]: parseFloat(e.target.value)||0}}))} /></div>
                                                                                         </div>
                                                                                     ))}
-                                                                                    <div className="flex gap-1 mt-1 pl-2">
+                                                                                    <div className="flex flex-col sm:flex-row gap-2 mt-2 pl-2">
                                                                                         <input placeholder="New Bucket" className="w-full text-[10px] border rounded px-1" value={inputs.targetGroup === group.id ? inputs.newItem : ''} onChange={e=>setInputs({...inputs, newItem: e.target.value, targetGroup: group.id})}/>
-                                                                                        <button onClick={()=>{ if(inputs.targetGroup === group.id) addItemToGroup('savings', group.id, inputs.newItem); }} className="bg-purple-200 text-purple-800 rounded px-1 text-[10px]"><Icons.Plus/></button>
+                                                                                        <button onClick={()=>{ if(inputs.targetGroup === group.id) addItemToGroup('savings', group.id, inputs.newItem); }} className="bg-purple-200 text-purple-800 rounded px-1 text-[10px] w-full sm:w-auto"><Icons.Plus/></button>
                                                                                     </div>
                                                                                 </div>
                                                                             </div>
                                                                         ))}
-                                                                        <div className="flex gap-1 mt-4">
+                                                                        <div className="flex flex-col sm:flex-row gap-2 mt-4">
                                                                             <input placeholder="New Savings Group" className="w-full text-xs border rounded px-1 font-bold" value={inputs.saveCat} onChange={e=>setInputs({...inputs, saveCat: e.target.value})}/>
-                                                                            <button onClick={()=>{ addGroup('savings', inputs.saveCat); setInputs({...inputs, saveCat: ''}) }} className="bg-purple-600 text-white rounded px-2 text-xs">Add Group</button>
+                                                                            <button onClick={()=>{ addGroup('savings', inputs.saveCat); setInputs({...inputs, saveCat: ''}) }} className="bg-purple-600 text-white rounded px-2 py-1 text-xs w-full sm:w-auto">Add Group</button>
                                                                         </div>
                                                                     </div>
                                                                     <div>
@@ -467,7 +467,7 @@
                                                                                     </div>
                                                                                 )
                                                                             })}
-                                                                            <div className="pt-2 flex gap-1"><input placeholder="New Variable Cat" className="w-full text-xs border rounded px-1" value={inputs.varCat} onChange={e=>setInputs({...inputs, varCat:e.target.value})}/><button onClick={()=>addCategory('variable', inputs.varCat)} className="bg-gray-200 rounded px-2"><Icons.Plus/></button></div>
+                                                                            <div className="pt-2 flex flex-col sm:flex-row gap-2"><input placeholder="New Variable Cat" className="w-full text-xs border rounded px-1" value={inputs.varCat} onChange={e=>setInputs({...inputs, varCat:e.target.value})}/><button onClick={()=>addCategory('variable', inputs.varCat)} className="bg-gray-200 rounded px-2 w-full sm:w-auto"><Icons.Plus/></button></div>
                                                                         </div>
                                                                     </div>
                                                                     <div className="bg-red-50 p-3 rounded border border-red-100">
@@ -762,7 +762,7 @@
             return (
                 <div className="max-w-7xl mx-auto p-4 pb-20">
                     <div className="flex flex-col md:flex-row justify-between items-center mb-6">
-                        <div className="flex items-center gap-3"><h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Financial OS <span className="text-sm font-normal text-slate-400 ml-2">v18</span></h1>{user && <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">{user.displayName}</span>}</div>
+                        <div className="flex items-center gap-3"><h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Financial OS <span className="text-sm font-normal text-slate-400 ml-2">v18.1</span></h1>{user && <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">{user.displayName}</span>}</div>
                         <div className="flex gap-2 mt-4 md:mt-0">{user && <button onClick={logout} className="bg-white border text-red-500 px-3 py-1.5 rounded text-sm flex gap-2 hover:bg-gray-50"><Icons.LogOut/> Sign Out</button>}</div>
                     </div>
                     <div className="flex gap-1 bg-white p-1 rounded-lg shadow-sm mb-6 overflow-x-auto">{['budget', 'net worth', 'analytics', 'strategy'].map(t => (<button key={t} onClick={()=>setActiveTab(t)} className={`px-4 py-2 rounded-md font-bold text-sm capitalize whitespace-nowrap transition-colors ${activeTab===t ? 'bg-slate-800 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>{t}</button>))}</div>
