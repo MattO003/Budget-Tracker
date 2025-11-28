@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Financial OS v19 (Net Worth Graph)</title>
+    <title>Financial OS v19.1 (Graph Axis)</title>
     
     <script>
         window.onerror = function(message, source, lineno, colno, error) {
@@ -125,6 +125,7 @@
             const [analyticsYear, setAnalyticsYear] = useState('All Time');
             const [analyticsMonth, setAnalyticsMonth] = useState('Whole Year');
             
+            // Modal State
             const [selectedItem, setSelectedItem] = useState(null); 
             const [logDate, setLogDate] = useState(new Date().toISOString().split('T')[0]);
             const [logAmount, setLogAmount] = useState('');
@@ -204,9 +205,8 @@
 
             const getValueAtDate = (item, targetDate) => {
                 if (!item.history || item.history.length === 0) return 0;
-                // Find latest log before or on targetDate
                 const validLogs = item.history.filter(h => h.date <= targetDate);
-                if (validLogs.length === 0) return 0; // Or return item.history sorted oldest to newest [0].value if you want initial
+                if (validLogs.length === 0) return 0; 
                 validLogs.sort((a,b) => b.date.localeCompare(a.date));
                 return validLogs[0].value;
             };
@@ -533,11 +533,35 @@
                         {chartData.length > 1 && (
                             <div className="bg-white p-6 rounded-xl shadow-sm mb-8">
                                 <h3 className="font-bold text-gray-700 mb-4">Net Worth Trend</h3>
-                                <div className="h-48 w-full relative border-l border-b border-gray-200">
-                                    <svg viewBox="0 0 300 100" className="w-full h-full" preserveAspectRatio="none">
+                                <div className="h-48 w-full relative border-l border-b border-gray-200 mb-8 ml-8">
+                                    <svg viewBox="0 0 300 100" className="w-full h-full overflow-visible" preserveAspectRatio="none">
+                                        <line x1="0" y1="0" x2="300" y2="0" stroke="#e5e7eb" strokeWidth="1" strokeDasharray="4" />
+                                        <line x1="0" y1="50" x2="300" y2="50" stroke="#e5e7eb" strokeWidth="1" strokeDasharray="4" />
+                                        
                                         <polyline fill="none" stroke="#22c55e" strokeWidth="2" points={getPoints('assets')} />
                                         <polyline fill="none" stroke="#ef4444" strokeWidth="2" points={getPoints('debts')} />
+
+                                        {chartData.map((d, i) => {
+                                            const x = (i / (chartData.length - 1 || 1)) * 300;
+                                            const yAssets = 100 - (d.assets / maxVal) * 100;
+                                            const yDebts = 100 - (d.debts / maxVal) * 100;
+                                            return (
+                                                <g key={i}>
+                                                    <circle cx={x} cy={yAssets} r="3" fill="#22c55e" />
+                                                    <circle cx={x} cy={yDebts} r="3" fill="#ef4444" />
+                                                </g>
+                                            );
+                                        })}
                                     </svg>
+                                    
+                                    {/* Y-Axis Labels */}
+                                    <div className="absolute -left-12 -top-3 text-xs text-gray-400 w-10 text-right">${(maxVal/1000).toLocaleString()}k</div>
+                                    <div className="absolute -left-12 top-1/2 text-xs text-gray-400 w-10 text-right">${(maxVal/2000).toLocaleString()}k</div>
+                                    <div className="absolute -left-12 -bottom-3 text-xs text-gray-400 w-10 text-right">$0</div>
+
+                                    {/* X-Axis Labels */}
+                                    <div className="absolute -bottom-6 left-0 text-xs text-gray-400">{chartData[0].date}</div>
+                                    <div className="absolute -bottom-6 right-0 text-xs text-gray-400">{chartData[chartData.length-1].date}</div>
                                 </div>
                                 <div className="flex gap-4 justify-center mt-2 text-xs font-bold">
                                     <div className="flex items-center gap-1"><div className="w-3 h-1 bg-green-500"></div> Assets</div>
@@ -583,7 +607,7 @@
                             </div>
                         </div>
 
-                        {/* HISTORY MODAL */}
+                        {/* HISTORY MODAL MOBILE FIX */}
                         {selectedItem && (
                             <div className="fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4">
                                 <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
@@ -592,12 +616,15 @@
                                         <button onClick={()=>setSelectedItem(null)} className="text-slate-400 hover:text-white"><Icons.X/></button>
                                     </div>
                                     <div className="p-4">
-                                        <div className="flex gap-2 mb-4">
-                                            <input type="date" className="border rounded px-2 py-1" value={logDate} onChange={e=>setLogDate(e.target.value)} />
-                                            <input type="number" placeholder="Amount" className="border rounded px-2 py-1 flex-grow" value={logAmount} onChange={e=>setLogAmount(e.target.value)} />
-                                            <button onClick={addLog} className="bg-blue-600 text-white px-3 rounded font-bold">Add</button>
+                                        {/* MOBILE FIX: Vertical Stack */}
+                                        <div className="flex flex-col gap-2 mb-4">
+                                            <label className="text-xs font-bold text-gray-500">Date</label>
+                                            <input type="date" className="border rounded px-2 py-2 w-full" value={logDate} onChange={e=>setLogDate(e.target.value)} />
+                                            <label className="text-xs font-bold text-gray-500">Amount</label>
+                                            <input type="number" placeholder="0.00" className="border rounded px-2 py-2 w-full" value={logAmount} onChange={e=>setLogAmount(e.target.value)} />
+                                            <button onClick={addLog} className="bg-blue-600 text-white py-3 rounded font-bold w-full mt-2 hover:bg-blue-700 transition">Add Entry</button>
                                         </div>
-                                        <div className="max-h-64 overflow-y-auto border-t">
+                                        <div className="max-h-64 overflow-y-auto border-t pt-2">
                                             <table className="w-full text-sm">
                                                 <thead><tr className="text-left text-gray-500 bg-gray-50"><th className="p-2">Date</th><th className="p-2">Amount</th><th className="p-2"></th></tr></thead>
                                                 <tbody>
@@ -613,12 +640,12 @@
                                             </table>
                                         </div>
                                         <button onClick={()=>{
-                                            if(confirm("Delete this asset/debt permanently?")) {
+                                            if(confirm("Delete this entire Asset/Liability permanently?")) {
                                                 const type = selectedItem.type;
                                                 setData(d => ({...d, [type]: d[type].filter(x => x.id !== selectedItem.id)}));
                                                 setSelectedItem(null);
                                             }
-                                        }} className="w-full mt-4 py-2 bg-red-50 text-red-600 rounded hover:bg-red-100 text-sm font-bold">Delete {selectedItem.label}</button>
+                                        }} className="w-full mt-4 py-3 bg-red-50 text-red-600 rounded hover:bg-red-100 text-sm font-bold border border-red-100">Delete {selectedItem.label}</button>
                                     </div>
                                 </div>
                             </div>
@@ -801,7 +828,7 @@
             return (
                 <div className="max-w-7xl mx-auto p-4 pb-20">
                     <div className="flex flex-col md:flex-row justify-between items-center mb-6">
-                        <div className="flex items-center gap-3"><h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Financial OS <span className="text-sm font-normal text-slate-400 ml-2">v19</span></h1>{user && <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">{user.displayName}</span>}</div>
+                        <div className="flex items-center gap-3"><h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Financial OS <span className="text-sm font-normal text-slate-400 ml-2">v19.1</span></h1>{user && <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">{user.displayName}</span>}</div>
                         <div className="flex gap-2 mt-4 md:mt-0">{user && <button onClick={logout} className="bg-white border text-red-500 px-3 py-1.5 rounded text-sm flex gap-2 hover:bg-gray-50"><Icons.LogOut/> Sign Out</button>}</div>
                     </div>
                     <div className="flex gap-1 bg-white p-1 rounded-lg shadow-sm mb-6 overflow-x-auto">{['budget', 'net worth', 'analytics', 'strategy'].map(t => (<button key={t} onClick={()=>setActiveTab(t)} className={`px-4 py-2 rounded-md font-bold text-sm capitalize whitespace-nowrap transition-colors ${activeTab===t ? 'bg-slate-800 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>{t}</button>))}</div>
