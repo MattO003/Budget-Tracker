@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Financial OS v17.3 (Keys Included)</title>
+    <title>Financial OS v18 (Net Worth Logs)</title>
     
     <script>
         window.onerror = function(message, source, lineno, colno, error) {
@@ -30,6 +30,7 @@
         .chart-segment:hover { stroke-width: 25; }
         .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .modal-overlay { background-color: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px); }
     </style>
 </head>
 <body class="bg-gray-100 text-slate-800 font-sans">
@@ -68,7 +69,9 @@
             LogOut: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>,
             Filter: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>,
             Bolt: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>,
-            Check: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Check: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>,
+            History: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>,
+            X: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         };
 
         const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -121,6 +124,11 @@
             const [activeTransactionCategory, setActiveTransactionCategory] = useState(null);
             const [analyticsYear, setAnalyticsYear] = useState('All Time');
             const [analyticsMonth, setAnalyticsMonth] = useState('Whole Year');
+            
+            // Modal State
+            const [selectedItem, setSelectedItem] = useState(null); // { type: 'asset'|'debt', id: string }
+            const [logDate, setLogDate] = useState(new Date().toISOString().split('T')[0]);
+            const [logAmount, setLogAmount] = useState('');
 
             const [inputs, setInputs] = useState({ year: '', cat: '', itemDesc: '', itemAmt: '', assetName: '', assetVal: '', debtName: '', debtBal: '', debtRate: '', goalName: '', goalTarget: '', incName: '', incAmt: '', varCat: '', saveCat: '', newGroup: '', newItem: '', targetGroup: '' });
             const [debtSimExtra, setDebtSimExtra] = useState(0);
@@ -141,6 +149,27 @@
                         if (doc.exists) {
                             let fetchedData = doc.data();
                             let needsUpdate = false;
+                            
+                            // MIGRATION: Convert flat values to history array
+                            const migrateItems = (items) => items.map(i => {
+                                let newItem = { ...i };
+                                if (newItem.value !== undefined && !newItem.history) {
+                                    needsUpdate = true;
+                                    newItem.history = [{ date: new Date().toISOString().split('T')[0], value: newItem.value }];
+                                    delete newItem.value;
+                                }
+                                if (newItem.balance !== undefined && !newItem.history) {
+                                    needsUpdate = true;
+                                    newItem.history = [{ date: new Date().toISOString().split('T')[0], value: newItem.balance }];
+                                    delete newItem.balance;
+                                }
+                                if (!newItem.history) newItem.history = [];
+                                return newItem;
+                            });
+
+                            fetchedData.assets = migrateItems(fetchedData.assets || []);
+                            fetchedData.debts = migrateItems(fetchedData.debts || []);
+
                             if (fetchedData.categories.fixed.length > 0 && !fetchedData.categories.fixed[0].items) {
                                 fetchedData.categories.fixed = [{ id: 'general_fixed', label: 'General Fixed Expenses', items: fetchedData.categories.fixed }];
                                 needsUpdate = true;
@@ -149,6 +178,7 @@
                                 fetchedData.categories.savings = [{ id: 'general_savings', label: 'General Savings', items: fetchedData.categories.savings }];
                                 needsUpdate = true;
                             }
+
                             setData(fetchedData);
                             if(needsUpdate) docRef.set(fetchedData); 
                         } else {
@@ -171,6 +201,15 @@
             const login = () => auth.signInWithPopup(googleProvider).catch(e => alert(e.message));
             const logout = () => { auth.signOut(); setUser(null); setData(null); };
 
+            // --- HELPER: Get Current Value from History ---
+            const getCurrentValue = (item) => {
+                if (!item.history || item.history.length === 0) return 0;
+                // Sort by date descending
+                const sorted = [...item.history].sort((a, b) => b.date.localeCompare(a.date));
+                return sorted[0].value;
+            };
+
+            // --- CALCS ---
             const getCatSpent = (m, catId) => m.transactions?.[catId]?.reduce((s, t) => s + t.amount, 0) || 0;
             const getMonthIncome = (m) => m.income.reduce((s, i) => s + i.amount, 0);
 
@@ -206,44 +245,27 @@
                 return s;
             };
 
+            // --- ACTIONS ---
             const updateMonth = (y, mIdx, cb) => setData(d => ({ ...d, years: { ...d.years, [y]: { ...d.years[y], [mIdx]: cb(d.years[y][mIdx]) } } }));
             
+            // Group & Item Management
             const addGroup = (type, name) => {
                 if(!name) return;
                 const id = generateId(name);
                 setData(d => ({...d, categories: {...d.categories, [type]: [...d.categories[type], {id, label: name, items: []}]}}));
                 setInputs(prev => ({...prev, newGroup: ''}));
             };
-
             const deleteGroup = (type, groupId) => {
-                if(confirm("Delete entire group and all items inside?")) {
-                    setData(d => ({...d, categories: {...d.categories, [type]: d.categories[type].filter(g => g.id !== groupId)}}));
-                }
+                if(confirm("Delete group?")) setData(d => ({...d, categories: {...d.categories, [type]: d.categories[type].filter(g => g.id !== groupId)}}));
             };
-
             const addItemToGroup = (type, groupId, name) => {
                 if(!name) return;
                 const id = generateId(name);
-                setData(d => ({
-                    ...d, 
-                    categories: {
-                        ...d.categories, 
-                        [type]: d.categories[type].map(g => g.id === groupId ? {...g, items: [...g.items, {id, label: name}]} : g)
-                    }
-                }));
+                setData(d => ({...d, categories: {...d.categories, [type]: d.categories[type].map(g => g.id === groupId ? {...g, items: [...g.items, {id, label: name}]} : g)}}));
                 setInputs(prev => ({...prev, newItem: '', targetGroup: ''}));
             };
-
             const deleteItemFromGroup = (type, groupId, itemId) => {
-                if(confirm("Delete item?")) {
-                    setData(d => ({
-                        ...d, 
-                        categories: {
-                            ...d.categories, 
-                            [type]: d.categories[type].map(g => g.id === groupId ? {...g, items: g.items.filter(i => i.id !== itemId)} : g)
-                        }
-                    }));
-                }
+                if(confirm("Delete item?")) setData(d => ({...d, categories: {...d.categories, [type]: d.categories[type].map(g => g.id === groupId ? {...g, items: g.items.filter(i => i.id !== itemId)} : g)}}));
             };
 
             const addCategory = (type, name) => {
@@ -255,396 +277,327 @@
             const deleteCategory = (type, id) => {
                 if(confirm("Delete category?")) setData(d => ({...d, categories: {...d.categories, [type]: d.categories[type].filter(c => c.id !== id)}}));
             };
-            
             const deleteYear = (year) => {
-                if(confirm(`Delete ${year}?`)) {
-                    setData(d => { const newYears = { ...d.years }; delete newYears[year]; return { ...d, years: newYears }; });
-                }
+                if(confirm(`Delete ${year}?`)) setData(d => { const newYears = { ...d.years }; delete newYears[year]; return { ...d, years: newYears }; });
             };
 
             const autofillBudget = (year, sourceMonthIdx) => {
-                if(!confirm(`Overwrite budget values in ALL other months of ${year} with values from ${MONTHS[sourceMonthIdx]}?`)) return;
+                if(!confirm("Copy budget?")) return;
                 const sourceExpenses = data.years[year][sourceMonthIdx].expenses;
                 setData(d => {
                     const updatedYear = { ...d.years[year] };
-                    for (let i = 0; i < 12; i++) {
-                        if (i !== sourceMonthIdx) {
-                            updatedYear[i] = { ...updatedYear[i], expenses: { ...sourceExpenses } };
-                        }
-                    }
+                    for (let i = 0; i < 12; i++) if (i !== sourceMonthIdx) updatedYear[i] = { ...updatedYear[i], expenses: { ...sourceExpenses } };
                     return { ...d, years: { ...d.years, [year]: updatedYear } };
                 });
             };
 
             const autofillSpent = (year, mIdx) => {
-                if(!confirm(`Autofill "Spent" columns using "Budget" values for Fixed Expenses and Savings for ${MONTHS[mIdx]}?`)) return;
-                
+                if(!confirm("Match spent to budget?")) return;
                 setData(d => {
                     const currentMonth = d.years[year][mIdx];
                     const newSpent = { ...currentMonth.spent }; 
-
-                    d.categories.fixed.forEach(group => {
-                        group.items.forEach(item => {
-                            if (currentMonth.expenses[item.id]) {
-                                newSpent[item.id] = currentMonth.expenses[item.id];
-                            }
-                        });
-                    });
-
-                    d.categories.savings.forEach(group => {
-                        group.items.forEach(item => {
-                            if (currentMonth.expenses[item.id]) {
-                                newSpent[item.id] = currentMonth.expenses[item.id];
-                            }
-                        });
-                    });
-
-                    return {
-                        ...d,
-                        years: {
-                            ...d.years,
-                            [year]: {
-                                ...d.years[year],
-                                [mIdx]: {
-                                    ...currentMonth,
-                                    spent: newSpent
-                                }
-                            }
-                        }
-                    };
+                    d.categories.fixed.forEach(group => group.items.forEach(item => { if (currentMonth.expenses[item.id]) newSpent[item.id] = currentMonth.expenses[item.id]; }));
+                    d.categories.savings.forEach(group => group.items.forEach(item => { if (currentMonth.expenses[item.id]) newSpent[item.id] = currentMonth.expenses[item.id]; }));
+                    return { ...d, years: { ...d.years, [year]: { ...d.years[year], [mIdx]: { ...currentMonth, spent: newSpent } } } };
                 });
             };
 
-            // --- VIEWS ---
-            if (loading) return <div className="h-screen flex items-center justify-center bg-gray-100 flex-col"><div className="loader mb-4"></div><p className="text-slate-500 font-bold animate-pulse">Syncing Data...</p></div>;
-
-            if (user && !data) return <div className="h-screen flex items-center justify-center bg-gray-100 flex-col"><div className="loader mb-4"></div><p className="text-slate-500 font-bold animate-pulse">Loading Profile...</p></div>;
-
-            if (!user) {
-                return (
-                    <div className="h-screen flex flex-col items-center justify-center bg-gray-100 p-4">
-                        <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full text-center">
-                            <h1 className="text-3xl font-extrabold text-slate-800 mb-2">Financial OS</h1>
-                            <p className="text-gray-500 mb-8">Secure, Multi-Year Budget Tracking</p>
-                            <button onClick={login} className="bg-blue-600 text-white font-bold py-3 px-6 rounded-lg w-full hover:bg-blue-700 transition flex items-center justify-center gap-2"><svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12.545 10.239v3.821h5.445c-0.712 2.315-2.647 3.972-5.445 3.972-3.332 0-6.033-2.531-6.033-5.652s2.701-5.652 6.033-5.652c1.498 0 2.866 0.549 3.921 1.453l2.814-2.814c-1.79-1.677-4.184-2.702-6.735-2.702-5.522 0-10 4.478-10 10s4.478 10 10 10c8.396 0 10.249-7.85 9.426-11.748l-9.426-0.001z"/></svg> Sign In with Google</button>
-                        </div>
-                    </div>
-                );
-            }
-
-            const renderBudget = () => {
-                return (
-                    <div className="space-y-6">
-                        {Object.keys(data.years).sort().map(year => {
-                            const yearStats = calculateStats(Object.values(data.years[year]));
-                            return (
-                                <div key={year} className="border rounded-xl bg-white shadow-sm overflow-hidden">
-                                    <div onClick={() => setExpandedYears(prev => prev.includes(year) ? prev.filter(y=>y!==year) : [...prev, year])} 
-                                         className="bg-slate-800 text-white p-4 flex justify-between items-center cursor-pointer hover:bg-slate-700">
-                                        <div className="flex items-center gap-4">
-                                            <h2 className="text-xl font-bold flex gap-2"><Icons.Calendar/> {year}</h2>
-                                            <button onClick={(e) => { e.stopPropagation(); deleteYear(year); }} className="text-slate-400 hover:text-red-400 p-1"><Icons.Trash /></button>
-                                        </div>
-                                        {expandedYears.includes(year) ? <Icons.ChevronUp/> : <Icons.ChevronDown/>}
-                                    </div>
-                                    {expandedYears.includes(year) && (
-                                        <div className="p-4 grid gap-4">
-                                            {MONTHS.map((monthName, mIdx) => {
-                                                const mData = data.years[year][mIdx];
-                                                const isExpanded = (expandedMonths[year] || []).includes(mIdx);
-                                                const mStats = calculateStats([mData]);
-
-                                                return (
-                                                    <div key={mIdx} className={`border rounded-lg ${isExpanded ? 'ring-2 ring-blue-100' : ''}`}>
-                                                        <div onClick={() => setExpandedMonths(prev => ({...prev, [year]: prev[year]?.includes(mIdx) ? prev[year].filter(m=>m!==mIdx) : [...(prev[year]||[]), mIdx]}))}
-                                                             className="p-3 flex justify-between items-center bg-gray-50 cursor-pointer hover:bg-gray-100">
-                                                            <span className="font-bold text-gray-700 w-24">{monthName}</span>
-                                                            <div className="flex gap-4 text-sm text-gray-500 hidden md:flex">
-                                                                <span>In: <b className="text-green-600">${Number(mStats.income).toFixed(0)}</b></span>
-                                                                <span>Out: <b className="text-red-600">${Number(mStats.spent).toFixed(0)}</b></span>
-                                                                <span>Rem: <b className={mStats.remaining >= 0 ? 'text-green-600' : 'text-red-600'}>${Number(mStats.remaining).toFixed(0)}</b></span>
-                                                            </div>
-                                                            {isExpanded ? <Icons.ChevronUp/> : <Icons.ChevronDown/>}
-                                                        </div>
-
-                                                        {isExpanded && (
-                                                            <div className="p-4 bg-white">
-                                                                <div className="flex justify-end gap-2 mb-4">
-                                                                    <button onClick={()=>autofillSpent(year, mIdx)} className="text-xs flex items-center gap-1 bg-green-100 text-green-700 px-3 py-1 rounded hover:bg-green-200 transition border border-green-200">
-                                                                        <Icons.Check/> Match Spent to Budget
-                                                                    </button>
-                                                                    <button onClick={()=>autofillBudget(year, mIdx)} className="text-xs flex items-center gap-1 bg-blue-100 text-blue-700 px-3 py-1 rounded hover:bg-blue-200 transition border border-blue-200">
-                                                                        <Icons.Bolt/> Apply Budget to All Months
-                                                                    </button>
-                                                                </div>
-                                                                <div className="grid lg:grid-cols-2 gap-6 mb-6">
-                                                                    <div className="space-y-6">
-                                                                        <div className="bg-green-50 p-3 rounded border border-green-100">
-                                                                            <h4 className="text-xs font-bold text-green-800 uppercase mb-2">Income Sources</h4>
-                                                                            {mData.income.map((inc, idx) => (
-                                                                                <div key={idx} className="flex justify-between text-sm mb-1">
-                                                                                    <span>{inc.label}</span>
-                                                                                    <span className="font-mono">${inc.amount}</span>
-                                                                                    <button onClick={()=>updateMonth(year, mIdx, m => ({...m, income: m.income.filter((_,i)=>i!==idx)}))} className="text-red-400"><Icons.Trash/></button>
-                                                                                </div>
-                                                                            ))}
-                                                                            <div className="flex gap-1 mt-2">
-                                                                                <input placeholder="Source" className="w-full text-xs border rounded px-1" value={inputs.incName} onChange={e=>setInputs({...inputs, incName: e.target.value})} />
-                                                                                <input placeholder="$" type="number" className="w-16 text-xs border rounded px-1" value={inputs.incAmt} onChange={e=>setInputs({...inputs, incAmt: e.target.value})} />
-                                                                                <button onClick={()=>{
-                                                                                    if(inputs.incName && inputs.incAmt) {
-                                                                                        updateMonth(year, mIdx, m => ({...m, income: [...m.income, {label: inputs.incName, amount: parseFloat(inputs.incAmt)}]}));
-                                                                                        setInputs({...inputs, incName: '', incAmt: ''});
-                                                                                    }
-                                                                                }} className="bg-green-600 text-white rounded px-1"><Icons.Plus/></button>
-                                                                            </div>
-                                                                        </div>
-
-                                                                        <div>
-                                                                            <h4 className="font-bold text-sm text-gray-600 border-b mb-4">Fixed Expenses</h4>
-                                                                            {data.categories.fixed.map(group => (
-                                                                                <div key={group.id} className="mb-4 border rounded p-2 bg-gray-50">
-                                                                                    <div className="flex justify-between items-center mb-2 border-b pb-1">
-                                                                                        <span className="font-bold text-xs text-gray-700 uppercase tracking-wider">{group.label}</span>
-                                                                                        <button onClick={()=>deleteGroup('fixed', group.id)} className="text-gray-300 hover:text-red-400"><Icons.Trash/></button>
-                                                                                    </div>
-                                                                                    <div className="space-y-1">
-                                                                                        {group.items.map(c => (
-                                                                                            <div key={c.id} className="flex justify-between items-center text-xs pl-2">
-                                                                                                <span className="flex items-center gap-1 group">{c.label} <button onClick={()=>deleteItemFromGroup('fixed', group.id, c.id)} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400"><Icons.Trash/></button></span>
-                                                                                                <div className="flex gap-1">
-                                                                                                    <input type="number" className="w-16 border rounded px-1" value={mData.expenses[c.id]||''} placeholder="Bud" onChange={e=>updateMonth(year, mIdx, m => ({...m, expenses: {...m.expenses, [c.id]: parseFloat(e.target.value)||0}}))} />
-                                                                                                    <input type="number" className="w-16 border rounded px-1" value={mData.spent[c.id]||''} placeholder="Pay" onChange={e=>updateMonth(year, mIdx, m => ({...m, spent: {...m.spent, [c.id]: parseFloat(e.target.value)||0}}))} />
-                                                                                                </div>
-                                                                                            </div>
-                                                                                        ))}
-                                                                                        <div className="flex gap-1 mt-1 pl-2">
-                                                                                            <input placeholder="New Item" className="w-full text-[10px] border rounded px-1" value={inputs.targetGroup === group.id ? inputs.newItem : ''} onChange={e=>setInputs({...inputs, newItem: e.target.value, targetGroup: group.id})}/>
-                                                                                            <button onClick={()=>{ if(inputs.targetGroup === group.id) addItemToGroup('fixed', group.id, inputs.newItem); }} className="bg-gray-200 rounded px-1 text-[10px]"><Icons.Plus/></button>
-                                                                                        </div>
-                                                                                    </div>
-                                                                                </div>
-                                                                            ))}
-                                                                            <div className="flex gap-1 mt-4">
-                                                                                <input placeholder="New Fixed Group" className="w-full text-xs border rounded px-1 font-bold" value={inputs.newGroup} onChange={e=>setInputs({...inputs, newGroup: e.target.value})}/>
-                                                                                <button onClick={()=>addGroup('fixed', inputs.newGroup)} className="bg-slate-700 text-white rounded px-2 text-xs">Add Group</button>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-
-                                                                    <div className="space-y-6">
-                                                                        <div className="bg-purple-50 p-3 rounded border border-purple-100">
-                                                                            <h4 className="text-xs font-bold text-purple-800 uppercase mb-4">Savings & Investments</h4>
-                                                                            {data.categories.savings.map(group => (
-                                                                                <div key={group.id} className="mb-4 border border-purple-200 rounded p-2 bg-purple-50/50">
-                                                                                    <div className="flex justify-between items-center mb-2 border-b border-purple-200 pb-1">
-                                                                                        <span className="font-bold text-xs text-purple-700 uppercase tracking-wider">{group.label}</span>
-                                                                                        <button onClick={()=>deleteGroup('savings', group.id)} className="text-purple-300 hover:text-red-400"><Icons.Trash/></button>
-                                                                                    </div>
-                                                                                    <div className="space-y-1">
-                                                                                        {group.items.map(c => (
-                                                                                            <div key={c.id} className="flex justify-between items-center text-xs pl-2">
-                                                                                                <span className="flex items-center gap-1 group text-purple-900">{c.label} <button onClick={()=>deleteItemFromGroup('savings', group.id, c.id)} className="opacity-0 group-hover:opacity-100 text-purple-300 hover:text-red-400"><Icons.Trash/></button></span>
-                                                                                                <div className="flex gap-1">
-                                                                                                    <input type="number" className="w-16 border rounded px-1" value={mData.expenses[c.id]||''} placeholder="Goal" onChange={e=>updateMonth(year, mIdx, m => ({...m, expenses: {...m.expenses, [c.id]: parseFloat(e.target.value)||0}}))} />
-                                                                                                    <input type="number" className="w-16 border rounded px-1" value={mData.spent[c.id]||''} placeholder="Saved" onChange={e=>updateMonth(year, mIdx, m => ({...m, spent: {...m.spent, [c.id]: parseFloat(e.target.value)||0}}))} />
-                                                                                                </div>
-                                                                                            </div>
-                                                                                        ))}
-                                                                                        <div className="flex gap-1 mt-1 pl-2">
-                                                                                            <input placeholder="New Bucket" className="w-full text-[10px] border rounded px-1" value={inputs.targetGroup === group.id ? inputs.newItem : ''} onChange={e=>setInputs({...inputs, newItem: e.target.value, targetGroup: group.id})}/>
-                                                                                            <button onClick={()=>{ if(inputs.targetGroup === group.id) addItemToGroup('savings', group.id, inputs.newItem); }} className="bg-purple-200 text-purple-800 rounded px-1 text-[10px]"><Icons.Plus/></button>
-                                                                                        </div>
-                                                                                    </div>
-                                                                                </div>
-                                                                            ))}
-                                                                            <div className="flex gap-1 mt-4">
-                                                                                <input placeholder="New Savings Group" className="w-full text-xs border rounded px-1 font-bold" value={inputs.saveCat} onChange={e=>setInputs({...inputs, saveCat: e.target.value})}/>
-                                                                                <button onClick={()=>{ addGroup('savings', inputs.saveCat); setInputs({...inputs, saveCat: ''}) }} className="bg-purple-600 text-white rounded px-2 text-xs">Add Group</button>
-                                                                            </div>
-                                                                        </div>
-
-                                                                        <div>
-                                                                            <h4 className="font-bold text-sm text-gray-600 border-b mb-2">Variable Expenses</h4>
-                                                                            <div className="space-y-2">
-                                                                                {data.categories.variable.map(c => {
-                                                                                    const spent = getCatSpent(mData, c.id);
-                                                                                    const bud = mData.expenses[c.id] || 0;
-                                                                                    const remaining = bud - spent;
-                                                                                    const isOpen = activeTransactionCategory?.year === year && activeTransactionCategory?.month === mIdx && activeTransactionCategory?.cat === c.id;
-                                                                                    
-                                                                                    return (
-                                                                                        <div key={c.id} className="text-xs border rounded bg-gray-50 p-2">
-                                                                                            <div className="flex justify-between items-center mb-1">
-                                                                                                <div className="flex gap-1 items-center">
-                                                                                                    <span onClick={()=>setActiveTransactionCategory(isOpen ? null : {year, month: mIdx, cat: c.id})} className="font-bold cursor-pointer text-blue-600 hover:underline">{c.label}</span>
-                                                                                                    <button onClick={()=>deleteCategory('variable', c.id)} className="text-gray-300 hover:text-red-400"><Icons.Trash/></button>
-                                                                                                </div>
-                                                                                                <div className="flex gap-2 items-center">
-                                                                                                    <input type="number" className="w-16 border rounded px-1 h-6 text-right" value={mData.expenses[c.id]||''} placeholder="Bud" onChange={e=>updateMonth(year, mIdx, m => ({...m, expenses: {...m.expenses, [c.id]: parseFloat(e.target.value)||0}}))} />
-                                                                                                    <div className="flex flex-col items-end w-16">
-                                                                                                        <span className="text-[10px] text-gray-500">Spent: ${Number(spent).toFixed(2)}</span>
-                                                                                                        <span className={`text-[10px] font-bold ${remaining < 0 ? 'text-red-500' : 'text-green-600'}`}>Left: ${Number(remaining).toFixed(2)}</span>
-                                                                                                    </div>
-                                                                                                </div>
-                                                                                            </div>
-                                                                                            {isOpen && (
-                                                                                                <div className="bg-white p-2 mt-1 border-t">
-                                                                                                    <div className="flex gap-1 mb-2">
-                                                                                                        <input placeholder="Item" className="border rounded w-full px-1" value={inputs.itemDesc} onChange={e=>setInputs({...inputs, itemDesc: e.target.value})} />
-                                                                                                        <input type="number" placeholder="$" className="border rounded w-12 px-1" value={inputs.itemAmt} onChange={e=>setInputs({...inputs, itemAmt: e.target.value})} />
-                                                                                                        <button onClick={()=>{
-                                                                                                            if(inputs.itemDesc && inputs.itemAmt){
-                                                                                                                const t = {id: Date.now(), desc: inputs.itemDesc, amount: parseFloat(inputs.itemAmt)};
-                                                                                                                updateMonth(year, mIdx, m => ({...m, transactions: {...m.transactions, [c.id]: [...(m.transactions[c.id]||[]), t]}}));
-                                                                                                                setInputs({...inputs, itemDesc:'', itemAmt:''});
-                                                                                                            }
-                                                                                                        }} className="bg-green-500 text-white rounded px-1"><Icons.Plus/></button>
-                                                                                                    </div>
-                                                                                                    {mData.transactions[c.id]?.map(t => (
-                                                                                                        <div key={t.id} className="flex justify-between border-b py-1">
-                                                                                                            <span>{t.desc}</span>
-                                                                                                            <div className="flex gap-2"><span>${t.amount}</span><button onClick={()=>updateMonth(year, mIdx, m => ({...m, transactions: {...m.transactions, [c.id]: m.transactions[c.id].filter(x=>x.id!==t.id)}}))} className="text-red-400"><Icons.Trash/></button></div>
-                                                                                                        </div>
-                                                                                                    ))}
-                                                                                                </div>
-                                                                                            )}
-                                                                                        </div>
-                                                                                    )
-                                                                                })}
-                                                                                <div className="pt-2 flex gap-1">
-                                                                                     <input placeholder="New Variable Cat" className="w-full text-xs border rounded px-1" value={inputs.varCat} onChange={e=>setInputs({...inputs, varCat:e.target.value})}/>
-                                                                                     <button onClick={()=>addCategory('variable', inputs.varCat)} className="bg-gray-200 rounded px-2"><Icons.Plus/></button>
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-
-                                                                        <div className="bg-red-50 p-3 rounded border border-red-100">
-                                                                            <h4 className="text-xs font-bold text-red-800 uppercase mb-2">Debt Payments</h4>
-                                                                            {data.debts.map(d => (
-                                                                                <div key={d.id} className="flex justify-between items-center text-xs mb-1">
-                                                                                    <span>{d.label}</span>
-                                                                                    <input type="number" placeholder="Paid" className="w-16 border border-red-200 rounded px-1" 
-                                                                                           value={mData.debts?.[d.id]?.payment || ''}
-                                                                                           onChange={e=>updateMonth(year, mIdx, m => ({...m, debts: {...m.debts, [d.id]: {...(m.debts?.[d.id]||{}), payment: parseFloat(e.target.value)||0}}}))} />
-                                                                                </div>
-                                                                            ))}
-                                                                            {data.debts.length===0 && <span className="text-xs text-gray-400 italic">Add debts in Net Worth tab</span>}
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                                <SummaryBlock stats={mStats} title={`${monthName} Summary`} />
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                            <SummaryBlock stats={yearStats} title={`${year} Annual Summary`} colorClass="bg-slate-800" />
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
-                        <div className="flex justify-center gap-2">
-                            <input type="number" placeholder="YYYY" className="border px-2 py-1 rounded w-24" id="newYearInput" />
-                            <button onClick={()=>{
-                                const y = document.getElementById('newYearInput').value;
-                                if(y && !data.years[y]) setData(d => ({...d, years: {...d.years, [y]: getEmptyYear()}}));
-                            }} className="bg-slate-800 text-white px-4 py-1 rounded">Add Year</button>
-                        </div>
-                    </div>
-                );
+            // --- NEW: HISTORY LOG ACTIONS ---
+            const addLog = () => {
+                if (!selectedItem || !logAmount) return;
+                const type = selectedItem.type; // 'assets' or 'debts'
+                const newItem = { date: logDate, value: parseFloat(logAmount) };
+                
+                setData(d => ({
+                    ...d,
+                    [type]: d[type].map(item => {
+                        if (item.id === selectedItem.id) {
+                            return { ...item, history: [...(item.history || []), newItem] };
+                        }
+                        return item;
+                    })
+                }));
+                setLogAmount('');
             };
 
+            const deleteLog = (logIndex) => {
+                if (!confirm("Remove this log entry?")) return;
+                const type = selectedItem.type;
+                setData(d => ({
+                    ...d,
+                    [type]: d[type].map(item => {
+                        if (item.id === selectedItem.id) {
+                            const newHistory = item.history.filter((_, idx) => idx !== logIndex);
+                            return { ...item, history: newHistory };
+                        }
+                        return item;
+                    })
+                }));
+            };
+
+            // --- VIEWS ---
+            if (loading || (user && !data)) return <div className="h-screen flex items-center justify-center bg-gray-100 flex-col"><div className="loader mb-4"></div><p className="text-slate-500 font-bold animate-pulse">Loading...</p></div>;
+
+            if (!user) return <div className="h-screen flex flex-col items-center justify-center bg-gray-100 p-4"><div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full text-center"><h1 className="text-3xl font-extrabold text-slate-800 mb-2">Financial OS</h1><p className="text-gray-500 mb-8">Secure, Multi-Year Budget Tracking</p><button onClick={login} className="bg-blue-600 text-white font-bold py-3 px-6 rounded-lg w-full hover:bg-blue-700 transition flex items-center justify-center gap-2"><svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12.545 10.239v3.821h5.445c-0.712 2.315-2.647 3.972-5.445 3.972-3.332 0-6.033-2.531-6.033-5.652s2.701-5.652 6.033-5.652c1.498 0 2.866 0.549 3.921 1.453l2.814-2.814c-1.79-1.677-4.184-2.702-6.735-2.702-5.522 0-10 4.478-10 10s4.478 10 10 10c8.396 0 10.249-7.85 9.426-11.748l-9.426-0.001z"/></svg> Sign In with Google</button></div></div>;
+
+            const renderBudget = () => (
+                <div className="space-y-6">
+                    {Object.keys(data.years).sort().map(year => {
+                        const yearStats = calculateStats(Object.values(data.years[year]));
+                        return (
+                            <div key={year} className="border rounded-xl bg-white shadow-sm overflow-hidden">
+                                <div onClick={() => setExpandedYears(prev => prev.includes(year) ? prev.filter(y=>y!==year) : [...prev, year])} className="bg-slate-800 text-white p-4 flex justify-between items-center cursor-pointer hover:bg-slate-700">
+                                    <div className="flex items-center gap-4"><h2 className="text-xl font-bold flex gap-2"><Icons.Calendar/> {year}</h2><button onClick={(e) => { e.stopPropagation(); deleteYear(year); }} className="text-slate-400 hover:text-red-400 p-1"><Icons.Trash /></button></div>
+                                    {expandedYears.includes(year) ? <Icons.ChevronUp/> : <Icons.ChevronDown/>}
+                                </div>
+                                {expandedYears.includes(year) && (
+                                    <div className="p-4 grid gap-4">
+                                        {MONTHS.map((monthName, mIdx) => {
+                                            const mData = data.years[year][mIdx];
+                                            const isExpanded = (expandedMonths[year] || []).includes(mIdx);
+                                            const mStats = calculateStats([mData]);
+                                            return (
+                                                <div key={mIdx} className={`border rounded-lg ${isExpanded ? 'ring-2 ring-blue-100' : ''}`}>
+                                                    <div onClick={() => setExpandedMonths(prev => ({...prev, [year]: prev[year]?.includes(mIdx) ? prev[year].filter(m=>m!==mIdx) : [...(prev[year]||[]), mIdx]}))} className="p-3 flex justify-between items-center bg-gray-50 cursor-pointer hover:bg-gray-100">
+                                                        <span className="font-bold text-gray-700 w-24">{monthName}</span>
+                                                        <div className="flex gap-4 text-sm text-gray-500 hidden md:flex">
+                                                            <span>In: <b className="text-green-600">${Number(mStats.income).toFixed(0)}</b></span>
+                                                            <span>Out: <b className="text-red-600">${Number(mStats.spent).toFixed(0)}</b></span>
+                                                            <span>Rem: <b className={mStats.remaining >= 0 ? 'text-green-600' : 'text-red-600'}>${Number(mStats.remaining).toFixed(0)}</b></span>
+                                                        </div>
+                                                        {isExpanded ? <Icons.ChevronUp/> : <Icons.ChevronDown/>}
+                                                    </div>
+                                                    {isExpanded && (
+                                                        <div className="p-4 bg-white">
+                                                            <div className="flex justify-end gap-2 mb-4">
+                                                                <button onClick={()=>autofillSpent(year, mIdx)} className="text-xs flex items-center gap-1 bg-green-100 text-green-700 px-3 py-1 rounded hover:bg-green-200 transition border border-green-200"><Icons.Check/> Match Spent to Budget</button>
+                                                                <button onClick={()=>autofillBudget(year, mIdx)} className="text-xs flex items-center gap-1 bg-blue-100 text-blue-700 px-3 py-1 rounded hover:bg-blue-200 transition border border-blue-200"><Icons.Bolt/> Apply Budget to All Months</button>
+                                                            </div>
+                                                            <div className="grid lg:grid-cols-2 gap-6 mb-6">
+                                                                <div className="space-y-6">
+                                                                    <div className="bg-green-50 p-3 rounded border border-green-100">
+                                                                        <h4 className="text-xs font-bold text-green-800 uppercase mb-2">Income Sources</h4>
+                                                                        {mData.income.map((inc, idx) => (
+                                                                            <div key={idx} className="flex justify-between text-sm mb-1">
+                                                                                <span>{inc.label}</span><span className="font-mono">${inc.amount}</span><button onClick={()=>updateMonth(year, mIdx, m => ({...m, income: m.income.filter((_,i)=>i!==idx)}))} className="text-red-400"><Icons.Trash/></button>
+                                                                            </div>
+                                                                        ))}
+                                                                        <div className="flex gap-1 mt-2">
+                                                                            <input placeholder="Source" className="w-full text-xs border rounded px-1" value={inputs.incName} onChange={e=>setInputs({...inputs, incName: e.target.value})} />
+                                                                            <input placeholder="$" type="number" className="w-16 text-xs border rounded px-1" value={inputs.incAmt} onChange={e=>setInputs({...inputs, incAmt: e.target.value})} />
+                                                                            <button onClick={()=>{ if(inputs.incName && inputs.incAmt) { updateMonth(year, mIdx, m => ({...m, income: [...m.income, {label: inputs.incName, amount: parseFloat(inputs.incAmt)}]})); setInputs({...inputs, incName: '', incAmt: ''}); } }} className="bg-green-600 text-white rounded px-1"><Icons.Plus/></button>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div>
+                                                                        <h4 className="font-bold text-sm text-gray-600 border-b mb-4">Fixed Expenses</h4>
+                                                                        {data.categories.fixed.map(group => (
+                                                                            <div key={group.id} className="mb-4 border rounded p-2 bg-gray-50">
+                                                                                <div className="flex justify-between items-center mb-2 border-b pb-1">
+                                                                                    <span className="font-bold text-xs text-gray-700 uppercase tracking-wider">{group.label}</span>
+                                                                                    <button onClick={()=>deleteGroup('fixed', group.id)} className="text-gray-300 hover:text-red-400"><Icons.Trash/></button>
+                                                                                </div>
+                                                                                <div className="space-y-1">
+                                                                                    {group.items.map(c => (
+                                                                                        <div key={c.id} className="flex justify-between items-center text-xs pl-2">
+                                                                                            <span className="flex items-center gap-1 group">{c.label} <button onClick={()=>deleteItemFromGroup('fixed', group.id, c.id)} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400"><Icons.Trash/></button></span>
+                                                                                            <div className="flex gap-1"><input type="number" className="w-16 border rounded px-1" value={mData.expenses[c.id]||''} placeholder="Bud" onChange={e=>updateMonth(year, mIdx, m => ({...m, expenses: {...m.expenses, [c.id]: parseFloat(e.target.value)||0}}))} /><input type="number" className="w-16 border rounded px-1" value={mData.spent[c.id]||''} placeholder="Pay" onChange={e=>updateMonth(year, mIdx, m => ({...m, spent: {...m.spent, [c.id]: parseFloat(e.target.value)||0}}))} /></div>
+                                                                                        </div>
+                                                                                    ))}
+                                                                                    <div className="flex gap-1 mt-1 pl-2">
+                                                                                        <input placeholder="New Item" className="w-full text-[10px] border rounded px-1" value={inputs.targetGroup === group.id ? inputs.newItem : ''} onChange={e=>setInputs({...inputs, newItem: e.target.value, targetGroup: group.id})}/>
+                                                                                        <button onClick={()=>{ if(inputs.targetGroup === group.id) addItemToGroup('fixed', group.id, inputs.newItem); }} className="bg-gray-200 rounded px-1 text-[10px]"><Icons.Plus/></button>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        ))}
+                                                                        <div className="flex gap-1 mt-4">
+                                                                            <input placeholder="New Fixed Group" className="w-full text-xs border rounded px-1 font-bold" value={inputs.newGroup} onChange={e=>setInputs({...inputs, newGroup: e.target.value})}/>
+                                                                            <button onClick={()=>addGroup('fixed', inputs.newGroup)} className="bg-slate-700 text-white rounded px-2 text-xs">Add Group</button>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="space-y-6">
+                                                                    <div className="bg-purple-50 p-3 rounded border border-purple-100">
+                                                                        <h4 className="text-xs font-bold text-purple-800 uppercase mb-4">SAVINGS & INVESTMENTS</h4>
+                                                                        {data.categories.savings.map(group => (
+                                                                            <div key={group.id} className="mb-4 border border-purple-200 rounded p-2 bg-purple-50/50">
+                                                                                <div className="flex justify-between items-center mb-2 border-b border-purple-200 pb-1">
+                                                                                    <span className="font-bold text-xs text-purple-700 uppercase tracking-wider">{group.label}</span>
+                                                                                    <button onClick={()=>deleteGroup('savings', group.id)} className="text-purple-300 hover:text-red-400"><Icons.Trash/></button>
+                                                                                </div>
+                                                                                <div className="space-y-1">
+                                                                                    {group.items.map(c => (
+                                                                                        <div key={c.id} className="flex justify-between items-center text-xs pl-2">
+                                                                                            <span className="flex items-center gap-1 group text-purple-900">{c.label} <button onClick={()=>deleteItemFromGroup('savings', group.id, c.id)} className="opacity-0 group-hover:opacity-100 text-purple-300 hover:text-red-400"><Icons.Trash/></button></span>
+                                                                                            <div className="flex gap-1"><input type="number" className="w-16 border rounded px-1" value={mData.expenses[c.id]||''} placeholder="Goal" onChange={e=>updateMonth(year, mIdx, m => ({...m, expenses: {...m.expenses, [c.id]: parseFloat(e.target.value)||0}}))} /><input type="number" className="w-16 border rounded px-1" value={mData.spent[c.id]||''} placeholder="Saved" onChange={e=>updateMonth(year, mIdx, m => ({...m, spent: {...m.spent, [c.id]: parseFloat(e.target.value)||0}}))} /></div>
+                                                                                        </div>
+                                                                                    ))}
+                                                                                    <div className="flex gap-1 mt-1 pl-2">
+                                                                                        <input placeholder="New Bucket" className="w-full text-[10px] border rounded px-1" value={inputs.targetGroup === group.id ? inputs.newItem : ''} onChange={e=>setInputs({...inputs, newItem: e.target.value, targetGroup: group.id})}/>
+                                                                                        <button onClick={()=>{ if(inputs.targetGroup === group.id) addItemToGroup('savings', group.id, inputs.newItem); }} className="bg-purple-200 text-purple-800 rounded px-1 text-[10px]"><Icons.Plus/></button>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        ))}
+                                                                        <div className="flex gap-1 mt-4">
+                                                                            <input placeholder="New Savings Group" className="w-full text-xs border rounded px-1 font-bold" value={inputs.saveCat} onChange={e=>setInputs({...inputs, saveCat: e.target.value})}/>
+                                                                            <button onClick={()=>{ addGroup('savings', inputs.saveCat); setInputs({...inputs, saveCat: ''}) }} className="bg-purple-600 text-white rounded px-2 text-xs">Add Group</button>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div>
+                                                                        <h4 className="font-bold text-sm text-gray-600 border-b mb-2">Variable Expenses</h4>
+                                                                        <div className="space-y-2">
+                                                                            {data.categories.variable.map(c => {
+                                                                                const spent = getCatSpent(mData, c.id);
+                                                                                const bud = mData.expenses[c.id] || 0;
+                                                                                const remaining = bud - spent;
+                                                                                const isOpen = activeTransactionCategory?.year === year && activeTransactionCategory?.month === mIdx && activeTransactionCategory?.cat === c.id;
+                                                                                return (
+                                                                                    <div key={c.id} className="text-xs border rounded bg-gray-50 p-2">
+                                                                                        <div className="flex justify-between items-center mb-1">
+                                                                                            <div className="flex gap-1 items-center"><span onClick={()=>setActiveTransactionCategory(isOpen ? null : {year, month: mIdx, cat: c.id})} className="font-bold cursor-pointer text-blue-600 hover:underline">{c.label}</span><button onClick={()=>deleteCategory('variable', c.id)} className="text-gray-300 hover:text-red-400"><Icons.Trash/></button></div>
+                                                                                            <div className="flex gap-2 items-center"><input type="number" className="w-16 border rounded px-1 h-6 text-right" value={mData.expenses[c.id]||''} placeholder="Bud" onChange={e=>updateMonth(year, mIdx, m => ({...m, expenses: {...m.expenses, [c.id]: parseFloat(e.target.value)||0}}))} /><div className="flex flex-col items-end w-16"><span className="text-[10px] text-gray-500">Spent: ${Number(spent).toFixed(2)}</span><span className={`text-[10px] font-bold ${remaining < 0 ? 'text-red-500' : 'text-green-600'}`}>Left: ${Number(remaining).toFixed(2)}</span></div></div>
+                                                                                        </div>
+                                                                                        {isOpen && (
+                                                                                            <div className="bg-white p-2 mt-1 border-t">
+                                                                                                <div className="flex gap-1 mb-2"><input placeholder="Item" className="border rounded w-full px-1" value={inputs.itemDesc} onChange={e=>setInputs({...inputs, itemDesc: e.target.value})} /><input type="number" placeholder="$" className="border rounded w-12 px-1" value={inputs.itemAmt} onChange={e=>setInputs({...inputs, itemAmt: e.target.value})} /><button onClick={()=>{ if(inputs.itemDesc && inputs.itemAmt){ const t = {id: Date.now(), desc: inputs.itemDesc, amount: parseFloat(inputs.itemAmt)}; updateMonth(year, mIdx, m => ({...m, transactions: {...m.transactions, [c.id]: [...(m.transactions[c.id]||[]), t]}})); setInputs({...inputs, itemDesc:'', itemAmt:''}); } }} className="bg-green-500 text-white rounded px-1"><Icons.Plus/></button></div>
+                                                                                                {mData.transactions[c.id]?.map(t => (<div key={t.id} className="flex justify-between border-b py-1"><span>{t.desc}</span><div className="flex gap-2"><span>${t.amount}</span><button onClick={()=>updateMonth(year, mIdx, m => ({...m, transactions: {...m.transactions, [c.id]: m.transactions[c.id].filter(x=>x.id!==t.id)}}))} className="text-red-400"><Icons.Trash/></button></div></div>))}
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                )
+                                                                            })}
+                                                                            <div className="pt-2 flex gap-1"><input placeholder="New Variable Cat" className="w-full text-xs border rounded px-1" value={inputs.varCat} onChange={e=>setInputs({...inputs, varCat:e.target.value})}/><button onClick={()=>addCategory('variable', inputs.varCat)} className="bg-gray-200 rounded px-2"><Icons.Plus/></button></div>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="bg-red-50 p-3 rounded border border-red-100">
+                                                                        <h4 className="text-xs font-bold text-red-800 uppercase mb-2">Debt Payments</h4>
+                                                                        {data.debts.map(d => (
+                                                                            <div key={d.id} className="flex justify-between items-center text-xs mb-1"><span>{d.label}</span><input type="number" placeholder="Paid" className="w-16 border border-red-200 rounded px-1" value={mData.debts?.[d.id]?.payment || ''} onChange={e=>updateMonth(year, mIdx, m => ({...m, debts: {...m.debts, [d.id]: {...(m.debts?.[d.id]||{}), payment: parseFloat(e.target.value)||0}}}))} /></div>
+                                                                        ))}
+                                                                        {data.debts.length===0 && <span className="text-xs text-gray-400 italic">Add debts in Net Worth tab</span>}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <SummaryBlock stats={mStats} title={`${monthName} Summary`} />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                        <SummaryBlock stats={yearStats} title={`${year} Annual Summary`} colorClass="bg-slate-800" />
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                    <div className="flex justify-center gap-2"><input type="number" placeholder="YYYY" className="border px-2 py-1 rounded w-24" id="newYearInput" /><button onClick={()=>{ const y = document.getElementById('newYearInput').value; if(y && !data.years[y]) setData(d => ({...d, years: {...d.years, [y]: getEmptyYear()}})); }} className="bg-slate-800 text-white px-4 py-1 rounded">Add Year</button></div>
+                </div>
+            );
+
             const renderNetWorth = () => {
-                const totalAssets = data.assets.reduce((sum, a) => sum + a.value, 0);
-                const totalLiabilities = data.debts.reduce((sum, d) => sum + d.balance, 0);
+                const totalAssets = data.assets.reduce((sum, a) => sum + getCurrentValue(a), 0);
+                const totalLiabilities = data.debts.reduce((sum, d) => sum + getCurrentValue(d), 0);
+
+                const openModal = (item, type) => {
+                    setSelectedItem({...item, type});
+                    setLogAmount('');
+                    setLogDate(new Date().toISOString().split('T')[0]);
+                };
 
                 return (
-                    <div className="grid md:grid-cols-2 gap-8">
-                        <div className="bg-white p-6 rounded-xl shadow-sm border-t-4 border-green-500">
-                            <h2 className="text-2xl font-bold text-slate-800 mb-4 flex justify-between">
-                                <span>Assets</span>
-                                <span className="text-green-600">${totalAssets.toLocaleString()}</span>
-                            </h2>
-                            <div className="space-y-3 mb-6">
-                                {data.assets.map(a => (
-                                    <div key={a.id} className="flex justify-between items-center p-3 bg-green-50 rounded border border-green-100">
-                                        <span className="font-bold text-green-900">{a.label}</span>
-                                        <div className="flex items-center gap-3">
-                                            <span className="font-mono">${a.value.toLocaleString()}</span>
-                                            <button onClick={()=>setData(prev=>({...prev, assets: prev.assets.filter(x=>x.id!==a.id)}))} className="text-green-400 hover:text-green-700"><Icons.Trash/></button>
+                    <div>
+                        <div className="grid md:grid-cols-2 gap-8">
+                            <div className="bg-white p-6 rounded-xl shadow-sm border-t-4 border-green-500">
+                                <h2 className="text-2xl font-bold text-slate-800 mb-4 flex justify-between"><span>Assets</span><span className="text-green-600">${totalAssets.toLocaleString()}</span></h2>
+                                <div className="space-y-3 mb-6">
+                                    {data.assets.map(a => (
+                                        <div key={a.id} onClick={()=>openModal(a, 'assets')} className="flex justify-between items-center p-3 bg-green-50 rounded border border-green-100 cursor-pointer hover:bg-green-100 transition">
+                                            <span className="font-bold text-green-900">{a.label}</span>
+                                            <div className="flex items-center gap-3"><span className="font-mono">${getCurrentValue(a).toLocaleString()}</span><Icons.History/></div>
                                         </div>
-                                    </div>
-                                ))}
+                                    ))}
+                                </div>
+                                <div className="flex gap-2 items-end bg-gray-50 p-3 rounded">
+                                    <div className="flex-grow"><label className="text-xs font-bold text-gray-400">Asset Name</label><input className="w-full border p-1 rounded" value={inputs.assetName} onChange={e=>setInputs({...inputs, assetName:e.target.value})}/></div>
+                                    <button onClick={()=>{ if(inputs.assetName) { setData(d => ({...d, assets: [...d.assets, {id: Date.now(), label: inputs.assetName, history: []}]})); setInputs({...inputs, assetName:''}); } }} className="bg-green-600 text-white p-2 rounded"><Icons.Plus/></button>
+                                </div>
                             </div>
-                            <div className="flex gap-2 items-end bg-gray-50 p-3 rounded">
-                                <div className="flex-grow"><label className="text-xs font-bold text-gray-400">Asset Name</label><input className="w-full border p-1 rounded" value={inputs.assetName} onChange={e=>setInputs({...inputs, assetName:e.target.value})}/></div>
-                                <div className="w-24"><label className="text-xs font-bold text-gray-400">Value</label><input type="number" className="w-full border p-1 rounded" value={inputs.assetVal} onChange={e=>setInputs({...inputs, assetVal:e.target.value})}/></div>
-                                <button onClick={()=>{
-                                    if(inputs.assetName && inputs.assetVal) {
-                                        setData(d => ({...d, assets: [...d.assets, {id: Date.now(), label: inputs.assetName, value: parseFloat(inputs.assetVal), type: 'Asset'}]}));
-                                        setInputs({...inputs, assetName:'', assetVal:''});
-                                    }
-                                }} className="bg-green-600 text-white p-2 rounded"><Icons.Plus/></button>
+                            <div className="bg-white p-6 rounded-xl shadow-sm border-t-4 border-red-500">
+                                <h2 className="text-2xl font-bold text-slate-800 mb-4 flex justify-between"><span>Liabilities</span><span className="text-red-600">${totalLiabilities.toLocaleString()}</span></h2>
+                                <div className="space-y-3 mb-6">
+                                    {data.debts.map(d => (
+                                        <div key={d.id} onClick={()=>openModal(d, 'debts')} className="flex justify-between items-center p-3 bg-red-50 rounded border border-red-100 cursor-pointer hover:bg-red-100 transition">
+                                            <span className="font-bold text-red-900">{d.label}</span>
+                                            <div className="flex items-center gap-3"><span className="font-mono">${getCurrentValue(d).toLocaleString()}</span><Icons.History/></div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="flex gap-2 items-end bg-gray-50 p-3 rounded">
+                                    <div className="flex-grow"><label className="text-xs font-bold text-gray-400">Debt Name</label><input className="w-full border p-1 rounded" value={inputs.debtName} onChange={e=>setInputs({...inputs, debtName:e.target.value})}/></div>
+                                    <button onClick={()=>{ if(inputs.debtName) { setData(d => ({...d, debts: [...d.debts, {id: generateId(inputs.debtName), label: inputs.debtName, history: []}]})); setInputs({...inputs, debtName:''}); } }} className="bg-red-600 text-white p-2 rounded"><Icons.Plus/></button>
+                                </div>
+                            </div>
+                            <div className="md:col-span-2 bg-slate-900 text-white p-8 rounded-2xl text-center shadow-xl">
+                                <h3 className="text-gray-400 uppercase tracking-widest text-sm mb-2">Total Net Worth</h3>
+                                <div className="text-5xl font-extrabold flex justify-center items-center gap-4">${(totalAssets - totalLiabilities).toLocaleString()}</div>
                             </div>
                         </div>
 
-                        <div className="bg-white p-6 rounded-xl shadow-sm border-t-4 border-red-500">
-                            <h2 className="text-2xl font-bold text-slate-800 mb-4 flex justify-between">
-                                <span>Liabilities</span>
-                                <span className="text-red-600">${totalLiabilities.toLocaleString()}</span>
-                            </h2>
-                            <div className="space-y-3 mb-6">
-                                {data.debts.map(d => (
-                                    <div key={d.id} className="flex justify-between items-center p-3 bg-red-50 rounded border border-red-100">
-                                        <span className="font-bold text-red-900">{d.label} <span className="text-xs font-normal text-red-700 bg-red-200 px-1 rounded ml-2">{d.rate}% APR</span></span>
-                                        <div className="flex items-center gap-3">
-                                            <span className="font-mono">${d.balance.toLocaleString()}</span>
-                                            <button onClick={()=>setData(prev=>({...prev, debts: prev.debts.filter(x=>x.id!==d.id)}))} className="text-red-400 hover:text-red-700"><Icons.Trash/></button>
-                                        </div>
+                        {/* HISTORY MODAL */}
+                        {selectedItem && (
+                            <div className="fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4">
+                                <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+                                    <div className="bg-slate-800 text-white p-4 flex justify-between items-center">
+                                        <h3 className="text-xl font-bold">{selectedItem.label} History</h3>
+                                        <button onClick={()=>setSelectedItem(null)} className="text-slate-400 hover:text-white"><Icons.X/></button>
                                     </div>
-                                ))}
+                                    <div className="p-4">
+                                        <div className="flex gap-2 mb-4">
+                                            <input type="date" className="border rounded px-2 py-1" value={logDate} onChange={e=>setLogDate(e.target.value)} />
+                                            <input type="number" placeholder="Amount" className="border rounded px-2 py-1 flex-grow" value={logAmount} onChange={e=>setLogAmount(e.target.value)} />
+                                            <button onClick={addLog} className="bg-blue-600 text-white px-3 rounded font-bold">Add</button>
+                                        </div>
+                                        <div className="max-h-64 overflow-y-auto border-t">
+                                            <table className="w-full text-sm">
+                                                <thead><tr className="text-left text-gray-500 bg-gray-50"><th className="p-2">Date</th><th className="p-2">Amount</th><th className="p-2"></th></tr></thead>
+                                                <tbody>
+                                                    {(selectedItem.history || []).sort((a,b) => b.date.localeCompare(a.date)).map((log, idx) => (
+                                                        <tr key={idx} className="border-b">
+                                                            <td className="p-2">{log.date}</td>
+                                                            <td className="p-2 font-mono font-bold">${log.value.toLocaleString()}</td>
+                                                            <td className="p-2 text-right"><button onClick={()=>deleteLog(idx)} className="text-red-400 hover:text-red-600"><Icons.Trash/></button></td>
+                                                        </tr>
+                                                    ))}
+                                                    {(!selectedItem.history || selectedItem.history.length === 0) && <tr><td colSpan="3" className="p-4 text-center text-gray-400 italic">No history yet.</td></tr>}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <button onClick={()=>{
+                                            if(confirm("Delete this asset/debt permanently?")) {
+                                                const type = selectedItem.type;
+                                                setData(d => ({...d, [type]: d[type].filter(x => x.id !== selectedItem.id)}));
+                                                setSelectedItem(null);
+                                            }
+                                        }} className="w-full mt-4 py-2 bg-red-50 text-red-600 rounded hover:bg-red-100 text-sm font-bold">Delete {selectedItem.label}</button>
+                                    </div>
+                                </div>
                             </div>
-                            <div className="flex gap-2 items-end bg-gray-50 p-3 rounded">
-                                <div className="flex-grow"><label className="text-xs font-bold text-gray-400">Debt Name</label><input className="w-full border p-1 rounded" value={inputs.debtName} onChange={e=>setInputs({...inputs, debtName:e.target.value})}/></div>
-                                <div className="w-24"><label className="text-xs font-bold text-gray-400">Balance</label><input type="number" className="w-full border p-1 rounded" value={inputs.debtBal} onChange={e=>setInputs({...inputs, debtBal:e.target.value})}/></div>
-                                <div className="w-16"><label className="text-xs font-bold text-gray-400">APR %</label><input type="number" className="w-full border p-1 rounded" value={inputs.debtRate} onChange={e=>setInputs({...inputs, debtRate:e.target.value})}/></div>
-                                <button onClick={()=>{
-                                    if(inputs.debtName && inputs.debtBal) {
-                                        setData(d => ({...d, debts: [...d.debts, {id: generateId(inputs.debtName), label: inputs.debtName, balance: parseFloat(inputs.debtBal), rate: parseFloat(inputs.debtRate)||0}]}));
-                                        setInputs({...inputs, debtName:'', debtBal:'', debtRate:''});
-                                    }
-                                }} className="bg-red-600 text-white p-2 rounded"><Icons.Plus/></button>
-                            </div>
-                        </div>
-
-                        <div className="md:col-span-2 bg-slate-900 text-white p-8 rounded-2xl text-center shadow-xl">
-                            <h3 className="text-gray-400 uppercase tracking-widest text-sm mb-2">Total Net Worth</h3>
-                            <div className="text-5xl font-extrabold flex justify-center items-center gap-4">
-                                ${(totalAssets - totalLiabilities).toLocaleString()}
-                            </div>
-                        </div>
+                        )}
                     </div>
                 );
             };
 
             const renderAnalytics = () => {
                 const availableYears = Object.keys(data.years).sort();
-                
                 const getFilteredMonths = () => {
                     let monthsToCalc = [];
-                    if (analyticsYear === 'All Time') {
-                         Object.values(data.years).forEach(y => Object.values(y).forEach(m => monthsToCalc.push(m)));
-                    } else {
+                    if (analyticsYear === 'All Time') Object.values(data.years).forEach(y => Object.values(y).forEach(m => monthsToCalc.push(m)));
+                    else {
                         const yData = data.years[analyticsYear];
                         if (yData) {
-                             if (analyticsMonth === 'Whole Year') {
-                                 Object.values(yData).forEach(m => monthsToCalc.push(m));
-                             } else {
-                                 const mIdx = MONTHS.indexOf(analyticsMonth);
-                                 if (yData[mIdx]) monthsToCalc.push(yData[mIdx]);
-                             }
+                             if (analyticsMonth === 'Whole Year') Object.values(yData).forEach(m => monthsToCalc.push(m));
+                             else { const mIdx = MONTHS.indexOf(analyticsMonth); if (yData[mIdx]) monthsToCalc.push(yData[mIdx]); }
                         }
                     }
                     return monthsToCalc;
@@ -656,28 +609,10 @@
                 const categoryBreakdown = (() => {
                     let breakdown = {};
                     activeMonths.forEach(m => {
-                        data.categories.fixed.forEach(group => {
-                            let groupTotal = 0;
-                            group.items.forEach(c => {
-                                groupTotal += (m.spent[c.id] || 0);
-                            });
-                            if(groupTotal > 0) breakdown[group.label] = (breakdown[group.label] || 0) + groupTotal;
-                        });
-                        data.categories.variable.forEach(c => {
-                            const val = getCatSpent(m, c.id) || 0; 
-                            if(val > 0) breakdown[c.label] = (breakdown[c.label] || 0) + val;
-                        });
-                        data.categories.savings.forEach(group => {
-                            let groupTotal = 0;
-                            group.items.forEach(c => {
-                                groupTotal += (m.spent[c.id] || 0);
-                            });
-                            if(groupTotal > 0) breakdown[group.label] = (breakdown[group.label] || 0) + groupTotal;
-                        });
-                        data.debts.forEach(d => {
-                            const val = (m.debts?.[d.id]?.payment || 0);
-                            if(val > 0) breakdown[d.label] = (breakdown[d.label] || 0) + val;
-                        });
+                        data.categories.fixed.forEach(group => { let groupTotal = 0; group.items.forEach(c => { groupTotal += (m.spent[c.id] || 0); }); if(groupTotal > 0) breakdown[group.label] = (breakdown[group.label] || 0) + groupTotal; });
+                        data.categories.variable.forEach(c => { const val = getCatSpent(m, c.id) || 0; if(val > 0) breakdown[c.label] = (breakdown[c.label] || 0) + val; });
+                        data.categories.savings.forEach(group => { let groupTotal = 0; group.items.forEach(c => { groupTotal += (m.spent[c.id] || 0); }); if(groupTotal > 0) breakdown[group.label] = (breakdown[group.label] || 0) + groupTotal; });
+                        data.debts.forEach(d => { const val = (m.debts?.[d.id]?.payment || 0); if(val > 0) breakdown[d.label] = (breakdown[d.label] || 0) + val; });
                     });
                     return Object.entries(breakdown).sort((a,b) => b[1] - a[1]);
                 })();
@@ -699,25 +634,17 @@
                 const monthCount = Math.max(1, activeMonths.length);
                 const avgMonthlySpend = totalStats.spent / monthCount;
                 const dti = totalStats.income > 0 ? ((totalStats.debtPaid / totalStats.income) * 100).toFixed(1) : 0;
-                const totalAssets = data.assets.reduce((sum, a) => sum + a.value, 0);
-                const totalLiabilities = data.debts.reduce((sum, d) => sum + d.balance, 0);
+                const totalAssets = data.assets.reduce((sum, a) => sum + getCurrentValue(a), 0);
+                const totalLiabilities = data.debts.reduce((sum, d) => sum + getCurrentValue(d), 0);
                 const runway = avgMonthlySpend > 0 ? ((totalAssets - totalLiabilities) / avgMonthlySpend).toFixed(1) : "0.0";
 
                 return (
                     <div className="space-y-8">
                         <div className="bg-white p-4 rounded-xl shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
-                            <div className="flex items-center gap-2 font-bold text-slate-700">
-                                <Icons.Filter/> <span>Analytics Filter:</span>
-                            </div>
+                            <div className="flex items-center gap-2 font-bold text-slate-700"><Icons.Filter/> <span>Analytics Filter:</span></div>
                             <div className="flex gap-4">
-                                <select className="border p-2 rounded bg-gray-50 font-bold text-sm" value={analyticsYear} onChange={e => { setAnalyticsYear(e.target.value); setAnalyticsMonth('Whole Year'); }}>
-                                    <option value="All Time">All Time</option>
-                                    {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
-                                </select>
-                                <select className="border p-2 rounded bg-gray-50 font-bold text-sm" value={analyticsMonth} onChange={e => setAnalyticsMonth(e.target.value)} disabled={analyticsYear === 'All Time'}>
-                                    <option value="Whole Year">Whole Year</option>
-                                    {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
-                                </select>
+                                <select className="border p-2 rounded bg-gray-50 font-bold text-sm" value={analyticsYear} onChange={e => { setAnalyticsYear(e.target.value); setAnalyticsMonth('Whole Year'); }}><option value="All Time">All Time</option>{availableYears.map(y => <option key={y} value={y}>{y}</option>)}</select>
+                                <select className="border p-2 rounded bg-gray-50 font-bold text-sm" value={analyticsMonth} onChange={e => setAnalyticsMonth(e.target.value)} disabled={analyticsYear === 'All Time'}><option value="Whole Year">Whole Year</option>{MONTHS.map(m => <option key={m} value={m}>{m}</option>)}</select>
                             </div>
                         </div>
 
@@ -737,25 +664,16 @@
                                     <div className="flex flex-col md:flex-row items-center gap-8">
                                         <div className="relative w-48 h-48 flex-shrink-0">
                                             <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
-                                                {chartSegments.map((seg, i) => (
-                                                    <circle key={i} cx="50" cy="50" r="40" fill="none" stroke={seg.color} strokeWidth="20"
-                                                        strokeDasharray={`${(seg.percent / 100) * 251.2} 251.2`}
-                                                        strokeDashoffset={-((seg.start / 100) * 251.2)}
-                                                        className="chart-segment" />
-                                                ))}
+                                                {chartSegments.map((seg, i) => (<circle key={i} cx="50" cy="50" r="40" fill="none" stroke={seg.color} strokeWidth="20" strokeDasharray={`${(seg.percent / 100) * 251.2} 251.2`} strokeDashoffset={-((seg.start / 100) * 251.2)} className="chart-segment" />))}
                                             </svg>
-                                            <div className="absolute inset-0 flex items-center justify-center flex-col">
-                                                <span className="text-xs text-gray-400">Total</span>
-                                                <span className="font-bold text-gray-800">${totalBreakdownSpend.toLocaleString(undefined, {maximumFractionDigits:0})}</span>
-                                            </div>
+                                            <div className="absolute inset-0 flex items-center justify-center flex-col"><span className="text-xs text-gray-400">Total</span><span className="font-bold text-gray-800">${totalBreakdownSpend.toLocaleString(undefined, {maximumFractionDigits:0})}</span></div>
                                         </div>
                                         <div className="flex-grow w-full">
                                             <div className="space-y-2">
                                                 {chartSegments.map((seg, i) => (
                                                     <div key={i} className="flex justify-between text-xs items-center">
                                                         <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full" style={{background: seg.color}}></div><span>{seg[0]}</span></div>
-                                                        {/* CHANGED: SHOW PERCENTAGE INSTEAD OF DOLLAR AMOUNT */}
-                                                        <span className="font-mono font-bold text-gray-600">{seg.percent.toFixed(1)}%</span>
+                                                        <span className="font-mono font-bold text-gray-600">${seg[1].toLocaleString()} ({seg.percent.toFixed(1)}%)</span>
                                                     </div>
                                                 ))}
                                             </div>
@@ -787,16 +705,16 @@
             };
 
             const renderStrategy = () => {
-                const sortedDebts = [...data.debts].sort((a,b) => a.balance - b.balance);
+                const sortedDebts = [...data.debts].sort((a,b) => getCurrentValue(a) - getCurrentValue(b));
                 let simMonths = 0;
-                let tempDebts = sortedDebts.map(d => ({...d}));
+                let tempDebts = sortedDebts.map(d => ({...d, balance: getCurrentValue(d)}));
                 
                 while(tempDebts.some(d => d.balance > 0) && simMonths < 360) {
                     simMonths++;
                     let monthlyExtra = parseFloat(debtSimExtra) || 0;
                     tempDebts.forEach(d => {
                         if(d.balance > 0) {
-                            const interest = (d.balance * (d.rate/100)) / 12;
+                            const interest = (d.balance * ((d.history?.[0]?.rate || 0)/100)) / 12; 
                             d.balance += interest;
                             let minPay = Math.max(d.balance * 0.02, 25);
                             if(d.balance < minPay) minPay = d.balance;
@@ -811,14 +729,8 @@
                     <div className="grid md:grid-cols-2 gap-8">
                         <div className="bg-white p-6 rounded-xl shadow-sm">
                             <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-2">Debt Payoff Simulator</h2>
-                            <div className="mb-6">
-                                <label className="block text-sm font-bold text-gray-700 mb-1">Extra Monthly Payment:</label>
-                                <input type="number" className="border-2 border-blue-200 rounded px-3 py-2 w-full font-bold text-lg" value={debtSimExtra} onChange={e=>setDebtSimExtra(e.target.value)} />
-                            </div>
-                            <div className="bg-blue-50 p-4 rounded-lg text-center">
-                                <p className="text-blue-900 text-sm font-bold uppercase">Debt Free In</p>
-                                <p className="text-3xl font-bold text-blue-600 my-1">{simMonths} Months</p>
-                            </div>
+                            <div className="mb-6"><label className="block text-sm font-bold text-gray-700 mb-1">Extra Monthly Payment:</label><input type="number" className="border-2 border-blue-200 rounded px-3 py-2 w-full font-bold text-lg" value={debtSimExtra} onChange={e=>setDebtSimExtra(e.target.value)} /></div>
+                            <div className="bg-blue-50 p-4 rounded-lg text-center"><p className="text-blue-900 text-sm font-bold uppercase">Debt Free In</p><p className="text-3xl font-bold text-blue-600 my-1">{simMonths} Months</p></div>
                         </div>
                         <div className="bg-white p-6 rounded-xl shadow-sm">
                             <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-2">Savings Goals Buckets</h2>
@@ -827,18 +739,10 @@
                                     const pct = Math.min((g.saved / g.target) * 100, 100);
                                     return (
                                         <div key={g.id}>
-                                            <div className="flex justify-between text-sm mb-1 font-bold text-gray-700">
-                                                <span>{g.label}</span>
-                                                <span>${g.saved} / ${g.target}</span>
-                                            </div>
-                                            <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
-                                                <div className="h-full bg-purple-500 progress-bar" style={{width: `${pct}%`}}></div>
-                                            </div>
+                                            <div className="flex justify-between text-sm mb-1 font-bold text-gray-700"><span>{g.label}</span><span>${g.saved} / ${g.target}</span></div>
+                                            <div className="h-3 bg-gray-200 rounded-full overflow-hidden"><div className="h-full bg-purple-500 progress-bar" style={{width: `${pct}%`}}></div></div>
                                             <div className="flex justify-end mt-1">
-                                                <button onClick={()=>{
-                                                    const amt = parseFloat(prompt("Add amount:"));
-                                                    if(amt) setData(d => ({...d, savingsGoals: d.savingsGoals.map(x=>x.id===g.id ? {...x, saved: x.saved+amt} : x)}));
-                                                }} className="text-xs text-blue-500 hover:underline mr-2">+ Add Cash</button>
+                                                <button onClick={()=>{ const amt = parseFloat(prompt("Add amount:")); if(amt) setData(d => ({...d, savingsGoals: d.savingsGoals.map(x=>x.id===g.id ? {...x, saved: x.saved+amt} : x)})); }} className="text-xs text-blue-500 hover:underline mr-2">+ Add Cash</button>
                                                 <button onClick={()=>setData(d => ({...d, savingsGoals: d.savingsGoals.filter(x=>x.id!==g.id)}))} className="text-xs text-red-400 hover:underline">Remove</button>
                                             </div>
                                         </div>
@@ -848,12 +752,7 @@
                             <div className="flex gap-2 items-end bg-gray-50 p-3 rounded">
                                 <div className="flex-grow"><label className="text-xs font-bold text-gray-400">Goal</label><input className="w-full border p-1 rounded" value={inputs.goalName} onChange={e=>setInputs({...inputs, goalName:e.target.value})}/></div>
                                 <div className="w-24"><label className="text-xs font-bold text-gray-400">Target</label><input type="number" className="w-full border p-1 rounded" value={inputs.goalTarget} onChange={e=>setInputs({...inputs, goalTarget:e.target.value})}/></div>
-                                <button onClick={()=>{
-                                    if(inputs.goalName && inputs.goalTarget) {
-                                        setData(d => ({...d, savingsGoals: [...d.savingsGoals, {id: Date.now(), label: inputs.goalName, target: parseFloat(inputs.goalTarget), saved: 0}]}));
-                                        setInputs({...inputs, goalName:'', goalTarget:''});
-                                    }
-                                }} className="bg-purple-600 text-white p-2 rounded"><Icons.Plus/></button>
+                                <button onClick={()=>{ if(inputs.goalName && inputs.goalTarget) { setData(d => ({...d, savingsGoals: [...d.savingsGoals, {id: Date.now(), label: inputs.goalName, target: parseFloat(inputs.goalTarget), saved: 0}]})); setInputs({...inputs, goalName:'', goalTarget:''}); } }} className="bg-purple-600 text-white p-2 rounded"><Icons.Plus/></button>
                             </div>
                         </div>
                     </div>
@@ -863,24 +762,10 @@
             return (
                 <div className="max-w-7xl mx-auto p-4 pb-20">
                     <div className="flex flex-col md:flex-row justify-between items-center mb-6">
-                        <div className="flex items-center gap-3">
-                            <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Financial OS <span className="text-sm font-normal text-slate-400 ml-2">v17.3</span></h1>
-                            {user && <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">{user.displayName}</span>}
-                        </div>
-                        <div className="flex gap-2 mt-4 md:mt-0">
-                            {user && <button onClick={logout} className="bg-white border text-red-500 px-3 py-1.5 rounded text-sm flex gap-2 hover:bg-gray-50"><Icons.LogOut/> Sign Out</button>}
-                        </div>
+                        <div className="flex items-center gap-3"><h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Financial OS <span className="text-sm font-normal text-slate-400 ml-2">v18</span></h1>{user && <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">{user.displayName}</span>}</div>
+                        <div className="flex gap-2 mt-4 md:mt-0">{user && <button onClick={logout} className="bg-white border text-red-500 px-3 py-1.5 rounded text-sm flex gap-2 hover:bg-gray-50"><Icons.LogOut/> Sign Out</button>}</div>
                     </div>
-
-                    <div className="flex gap-1 bg-white p-1 rounded-lg shadow-sm mb-6 overflow-x-auto">
-                        {['budget', 'net worth', 'analytics', 'strategy'].map(t => (
-                            <button key={t} onClick={()=>setActiveTab(t)} 
-                                className={`px-4 py-2 rounded-md font-bold text-sm capitalize whitespace-nowrap transition-colors ${activeTab===t ? 'bg-slate-800 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
-                                {t}
-                            </button>
-                        ))}
-                    </div>
-
+                    <div className="flex gap-1 bg-white p-1 rounded-lg shadow-sm mb-6 overflow-x-auto">{['budget', 'net worth', 'analytics', 'strategy'].map(t => (<button key={t} onClick={()=>setActiveTab(t)} className={`px-4 py-2 rounded-md font-bold text-sm capitalize whitespace-nowrap transition-colors ${activeTab===t ? 'bg-slate-800 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>{t}</button>))}</div>
                     <div className="min-h-screen">
                         {activeTab === 'budget' && renderBudget()}
                         {activeTab === 'net worth' && renderNetWorth()}
