@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Financial OS v18.1 (Mobile Fix & Safety)</title>
+    <title>Financial OS v18.3 (Net Worth Mobile Fix)</title>
     
     <script>
         window.onerror = function(message, source, lineno, colno, error) {
@@ -125,8 +125,7 @@
             const [analyticsYear, setAnalyticsYear] = useState('All Time');
             const [analyticsMonth, setAnalyticsMonth] = useState('Whole Year');
             
-            // Modal State
-            const [selectedItem, setSelectedItem] = useState(null); // { type: 'asset'|'debt', id: string }
+            const [selectedItem, setSelectedItem] = useState(null); 
             const [logDate, setLogDate] = useState(new Date().toISOString().split('T')[0]);
             const [logAmount, setLogAmount] = useState('');
 
@@ -149,8 +148,6 @@
                         if (doc.exists) {
                             let fetchedData = doc.data();
                             let needsUpdate = false;
-                            
-                            // MIGRATION: Convert flat values to history array
                             const migrateItems = (items) => items.map(i => {
                                 let newItem = { ...i };
                                 if (newItem.value !== undefined && !newItem.history) {
@@ -166,10 +163,8 @@
                                 if (!newItem.history) newItem.history = [];
                                 return newItem;
                             });
-
                             fetchedData.assets = migrateItems(fetchedData.assets || []);
                             fetchedData.debts = migrateItems(fetchedData.debts || []);
-
                             if (fetchedData.categories.fixed.length > 0 && !fetchedData.categories.fixed[0].items) {
                                 fetchedData.categories.fixed = [{ id: 'general_fixed', label: 'General Fixed Expenses', items: fetchedData.categories.fixed }];
                                 needsUpdate = true;
@@ -178,7 +173,6 @@
                                 fetchedData.categories.savings = [{ id: 'general_savings', label: 'General Savings', items: fetchedData.categories.savings }];
                                 needsUpdate = true;
                             }
-
                             setData(fetchedData);
                             if(needsUpdate) docRef.set(fetchedData); 
                         } else {
@@ -201,15 +195,12 @@
             const login = () => auth.signInWithPopup(googleProvider).catch(e => alert(e.message));
             const logout = () => { auth.signOut(); setUser(null); setData(null); };
 
-            // --- HELPER: Get Current Value from History ---
             const getCurrentValue = (item) => {
                 if (!item.history || item.history.length === 0) return 0;
-                // Sort by date descending
                 const sorted = [...item.history].sort((a, b) => b.date.localeCompare(a.date));
                 return sorted[0].value;
             };
 
-            // --- CALCS ---
             const getCatSpent = (m, catId) => m.transactions?.[catId]?.reduce((s, t) => s + t.amount, 0) || 0;
             const getMonthIncome = (m) => m.income.reduce((s, i) => s + i.amount, 0);
 
@@ -245,10 +236,8 @@
                 return s;
             };
 
-            // --- ACTIONS ---
             const updateMonth = (y, mIdx, cb) => setData(d => ({ ...d, years: { ...d.years, [y]: { ...d.years[y], [mIdx]: cb(d.years[y][mIdx]) } } }));
             
-            // Group & Item Management
             const addGroup = (type, name) => {
                 if(!name) return;
                 const id = generateId(name);
@@ -256,7 +245,9 @@
                 setInputs(prev => ({...prev, newGroup: ''}));
             };
             const deleteGroup = (type, groupId) => {
-                if(confirm("Delete group?")) setData(d => ({...d, categories: {...d.categories, [type]: d.categories[type].filter(g => g.id !== groupId)}}));
+                if(confirm("Delete entire group and all items inside?")) {
+                    setData(d => ({...d, categories: {...d.categories, [type]: d.categories[type].filter(g => g.id !== groupId)}}));
+                }
             };
             const addItemToGroup = (type, groupId, name) => {
                 if(!name) return;
@@ -265,7 +256,9 @@
                 setInputs(prev => ({...prev, newItem: '', targetGroup: ''}));
             };
             const deleteItemFromGroup = (type, groupId, itemId) => {
-                if(confirm("Delete item?")) setData(d => ({...d, categories: {...d.categories, [type]: d.categories[type].map(g => g.id === groupId ? {...g, items: g.items.filter(i => i.id !== itemId)} : g)}}));
+                if(confirm("Delete item?")) {
+                    setData(d => ({...d, categories: {...d.categories, [type]: d.categories[type].map(g => g.id === groupId ? {...g, items: g.items.filter(i => i.id !== itemId)} : g)}}));
+                }
             };
 
             const addCategory = (type, name) => {
@@ -302,12 +295,10 @@
                 });
             };
 
-            // --- NEW: HISTORY LOG ACTIONS ---
             const addLog = () => {
                 if (!selectedItem || !logAmount) return;
-                const type = selectedItem.type; // 'assets' or 'debts'
+                const type = selectedItem.type; 
                 const newItem = { date: logDate, value: parseFloat(logAmount) };
-                
                 setData(d => ({
                     ...d,
                     [type]: d[type].map(item => {
@@ -335,7 +326,6 @@
                 }));
             };
 
-            // --- VIEWS ---
             if (loading || (user && !data)) return <div className="h-screen flex items-center justify-center bg-gray-100 flex-col"><div className="loader mb-4"></div><p className="text-slate-500 font-bold animate-pulse">Loading...</p></div>;
 
             if (!user) return <div className="h-screen flex flex-col items-center justify-center bg-gray-100 p-4"><div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full text-center"><h1 className="text-3xl font-extrabold text-slate-800 mb-2">Financial OS</h1><p className="text-gray-500 mb-8">Secure, Multi-Year Budget Tracking</p><button onClick={login} className="bg-blue-600 text-white font-bold py-3 px-6 rounded-lg w-full hover:bg-blue-700 transition flex items-center justify-center gap-2"><svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12.545 10.239v3.821h5.445c-0.712 2.315-2.647 3.972-5.445 3.972-3.332 0-6.033-2.531-6.033-5.652s2.701-5.652 6.033-5.652c1.498 0 2.866 0.549 3.921 1.453l2.814-2.814c-1.79-1.677-4.184-2.702-6.735-2.702-5.522 0-10 4.478-10 10s4.478 10 10 10c8.396 0 10.249-7.85 9.426-11.748l-9.426-0.001z"/></svg> Sign In with Google</button></div></div>;
@@ -460,8 +450,8 @@
                                                                                         </div>
                                                                                         {isOpen && (
                                                                                             <div className="bg-white p-2 mt-1 border-t">
-                                                                                                <div className="flex gap-1 mb-2"><input placeholder="Item" className="border rounded w-full px-1" value={inputs.itemDesc} onChange={e=>setInputs({...inputs, itemDesc: e.target.value})} /><input type="number" placeholder="$" className="border rounded w-12 px-1" value={inputs.itemAmt} onChange={e=>setInputs({...inputs, itemAmt: e.target.value})} /><button onClick={()=>{ if(inputs.itemDesc && inputs.itemAmt){ const t = {id: Date.now(), desc: inputs.itemDesc, amount: parseFloat(inputs.itemAmt)}; updateMonth(year, mIdx, m => ({...m, transactions: {...m.transactions, [c.id]: [...(m.transactions[c.id]||[]), t]}})); setInputs({...inputs, itemDesc:'', itemAmt:''}); } }} className="bg-green-500 text-white rounded px-1"><Icons.Plus/></button></div>
-                                                                                                {mData.transactions[c.id]?.map(t => (<div key={t.id} className="flex justify-between border-b py-1"><span>{t.desc}</span><div className="flex gap-2"><span>${t.amount}</span><button onClick={()=>updateMonth(year, mIdx, m => ({...m, transactions: {...m.transactions, [c.id]: m.transactions[c.id].filter(x=>x.id!==t.id)}}))} className="text-red-400"><Icons.Trash/></button></div></div>))}
+                                                                                                <div className="flex flex-col sm:flex-row gap-2 mb-2"><input placeholder="Item" className="border rounded w-full px-1" value={inputs.itemDesc} onChange={e=>setInputs({...inputs, itemDesc: e.target.value})} /><input type="number" placeholder="$" className="border rounded w-full sm:w-20 px-1" value={inputs.itemAmt} onChange={e=>setInputs({...inputs, itemAmt: e.target.value})} /><button onClick={()=>{ if(inputs.itemDesc && inputs.itemAmt){ const t = {id: Date.now(), desc: inputs.itemDesc, amount: parseFloat(inputs.itemAmt)}; updateMonth(year, mIdx, m => ({...m, transactions: {...m.transactions, [c.id]: [...(m.transactions[c.id]||[]), t]}})); setInputs({...inputs, itemDesc:'', itemAmt:''}); } }} className="bg-green-500 text-white rounded px-2 py-1 w-full sm:w-auto"><Icons.Plus/></button></div>
+                                                                                                {mData.transactions[c.id]?.map(t => (<div key={t.id} className="flex justify-between border-b py-1"><span>{t.desc}</span><div className="flex gap-2"><span>${t.amount}</span><button onClick={()=>{ if(confirm("Delete this transaction?")) { updateMonth(year, mIdx, m => ({...m, transactions: {...m.transactions, [c.id]: m.transactions[c.id].filter(x=>x.id!==t.id)}})) }}} className="text-red-400"><Icons.Trash/></button></div></div>))}
                                                                                             </div>
                                                                                         )}
                                                                                     </div>
@@ -544,7 +534,7 @@
                             </div>
                         </div>
 
-                        {/* HISTORY MODAL */}
+                        {/* HISTORY MODAL MOBILE FIX */}
                         {selectedItem && (
                             <div className="fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4">
                                 <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
@@ -553,12 +543,15 @@
                                         <button onClick={()=>setSelectedItem(null)} className="text-slate-400 hover:text-white"><Icons.X/></button>
                                     </div>
                                     <div className="p-4">
-                                        <div className="flex gap-2 mb-4">
-                                            <input type="date" className="border rounded px-2 py-1" value={logDate} onChange={e=>setLogDate(e.target.value)} />
-                                            <input type="number" placeholder="Amount" className="border rounded px-2 py-1 flex-grow" value={logAmount} onChange={e=>setLogAmount(e.target.value)} />
-                                            <button onClick={addLog} className="bg-blue-600 text-white px-3 rounded font-bold">Add</button>
+                                        {/* MOBILE FIX: Vertical Stack */}
+                                        <div className="flex flex-col gap-2 mb-4">
+                                            <label className="text-xs font-bold text-gray-500">Date</label>
+                                            <input type="date" className="border rounded px-2 py-2 w-full" value={logDate} onChange={e=>setLogDate(e.target.value)} />
+                                            <label className="text-xs font-bold text-gray-500">Amount</label>
+                                            <input type="number" placeholder="0.00" className="border rounded px-2 py-2 w-full" value={logAmount} onChange={e=>setLogAmount(e.target.value)} />
+                                            <button onClick={addLog} className="bg-blue-600 text-white py-3 rounded font-bold w-full mt-2 hover:bg-blue-700 transition">Add Entry</button>
                                         </div>
-                                        <div className="max-h-64 overflow-y-auto border-t">
+                                        <div className="max-h-64 overflow-y-auto border-t pt-2">
                                             <table className="w-full text-sm">
                                                 <thead><tr className="text-left text-gray-500 bg-gray-50"><th className="p-2">Date</th><th className="p-2">Amount</th><th className="p-2"></th></tr></thead>
                                                 <tbody>
@@ -574,12 +567,12 @@
                                             </table>
                                         </div>
                                         <button onClick={()=>{
-                                            if(confirm("Delete this asset/debt permanently?")) {
+                                            if(confirm("Delete this entire Asset/Liability permanently?")) {
                                                 const type = selectedItem.type;
                                                 setData(d => ({...d, [type]: d[type].filter(x => x.id !== selectedItem.id)}));
                                                 setSelectedItem(null);
                                             }
-                                        }} className="w-full mt-4 py-2 bg-red-50 text-red-600 rounded hover:bg-red-100 text-sm font-bold">Delete {selectedItem.label}</button>
+                                        }} className="w-full mt-4 py-3 bg-red-50 text-red-600 rounded hover:bg-red-100 text-sm font-bold border border-red-100">Delete {selectedItem.label}</button>
                                     </div>
                                 </div>
                             </div>
@@ -762,7 +755,7 @@
             return (
                 <div className="max-w-7xl mx-auto p-4 pb-20">
                     <div className="flex flex-col md:flex-row justify-between items-center mb-6">
-                        <div className="flex items-center gap-3"><h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Financial OS <span className="text-sm font-normal text-slate-400 ml-2">v18.1</span></h1>{user && <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">{user.displayName}</span>}</div>
+                        <div className="flex items-center gap-3"><h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Financial OS <span className="text-sm font-normal text-slate-400 ml-2">v18.3</span></h1>{user && <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">{user.displayName}</span>}</div>
                         <div className="flex gap-2 mt-4 md:mt-0">{user && <button onClick={logout} className="bg-white border text-red-500 px-3 py-1.5 rounded text-sm flex gap-2 hover:bg-gray-50"><Icons.LogOut/> Sign Out</button>}</div>
                     </div>
                     <div className="flex gap-1 bg-white p-1 rounded-lg shadow-sm mb-6 overflow-x-auto">{['budget', 'net worth', 'analytics', 'strategy'].map(t => (<button key={t} onClick={()=>setActiveTab(t)} className={`px-4 py-2 rounded-md font-bold text-sm capitalize whitespace-nowrap transition-colors ${activeTab===t ? 'bg-slate-800 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>{t}</button>))}</div>
