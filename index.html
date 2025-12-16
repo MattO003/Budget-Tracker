@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Financial OS v19.1 (Graph Axis)</title>
+    <title>Financial OS v20 (Monthly Context)</title>
     
     <script>
         window.onerror = function(message, source, lineno, colno, error) {
@@ -71,16 +71,28 @@
             Bolt: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>,
             Check: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>,
             History: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>,
-            X: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            X: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>,
+            Copy: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
         };
 
         const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
         const COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6', '#f97316', '#64748b'];
 
         const generateId = (name) => name.toLowerCase().replace(/[^a-z0-9]/g, '') + '_' + Date.now();
+        
+        // NEW STRUCTURE: variableCategories are now inside the month object
         const getEmptyYear = () => {
             const y = {};
-            for (let i = 0; i < 12; i++) y[i] = { income: [], expenses: {}, spent: {}, transactions: {}, debts: {} };
+            for (let i = 0; i < 12; i++) {
+                y[i] = { 
+                    income: [], 
+                    expenses: {}, 
+                    spent: {}, 
+                    transactions: {}, 
+                    debts: {},
+                    variableCategories: [{ id: 'groceries', label: 'Groceries' }, { id: 'gas', label: 'Gas' }] // Default for new months
+                };
+            }
             return y;
         };
 
@@ -90,10 +102,10 @@
                     { id: 'housing', label: 'Housing', items: [{id: 'rent', label: 'Rent'}, {id: 'trash', label: 'Trash'}] },
                     { id: 'insurance', label: 'Insurance', items: [{id: 'car_ins', label: 'Car Insurance'}] }
                 ],
-                variable: [{ id: 'groceries', label: 'Groceries' }, { id: 'gas', label: 'Gas' }],
                 savings: [
                     { id: 'buckets', label: 'Buckets', items: [{id: 'roth', label: 'Roth IRA'}] }
                 ]
+                // Variable is removed from here and moved to individual months
             },
             assets: [], debts: [], savingsGoals: [],
             years: { [new Date().getFullYear()]: getEmptyYear() }
@@ -150,6 +162,7 @@
                             let fetchedData = doc.data();
                             let needsUpdate = false;
                             
+                            // MIGRATION 1: History Logs (v18)
                             const migrateItems = (items) => items.map(i => {
                                 let newItem = { ...i };
                                 if (newItem.value !== undefined && !newItem.history) {
@@ -167,6 +180,8 @@
                             });
                             fetchedData.assets = migrateItems(fetchedData.assets || []);
                             fetchedData.debts = migrateItems(fetchedData.debts || []);
+
+                            // MIGRATION 2: Grouped Fixed/Savings (v17)
                             if (fetchedData.categories.fixed.length > 0 && !fetchedData.categories.fixed[0].items) {
                                 fetchedData.categories.fixed = [{ id: 'general_fixed', label: 'General Fixed Expenses', items: fetchedData.categories.fixed }];
                                 needsUpdate = true;
@@ -175,6 +190,22 @@
                                 fetchedData.categories.savings = [{ id: 'general_savings', label: 'General Savings', items: fetchedData.categories.savings }];
                                 needsUpdate = true;
                             }
+
+                            // MIGRATION 3: Month-Scoped Variable Categories (v20)
+                            // If user has global variable categories but months don't have them yet, copy them over
+                            const globalVars = fetchedData.categories.variable;
+                            if (globalVars && globalVars.length > 0) {
+                                Object.keys(fetchedData.years).forEach(yKey => {
+                                    Object.keys(fetchedData.years[yKey]).forEach(mKey => {
+                                        if (!fetchedData.years[yKey][mKey].variableCategories) {
+                                            fetchedData.years[yKey][mKey].variableCategories = [...globalVars];
+                                            needsUpdate = true;
+                                        }
+                                    });
+                                });
+                                // Don't delete globalVars yet to be safe, but we stop using them in UI
+                            }
+
                             setData(fetchedData);
                             if(needsUpdate) docRef.set(fetchedData); 
                         } else {
@@ -226,10 +257,14 @@
                             s.spent += (m.spent[c.id] || 0);
                         });
                     });
-                    data.categories.variable.forEach(c => {
+                    
+                    // Variable now comes from the MONTH object, not global
+                    const varCats = m.variableCategories || [];
+                    varCats.forEach(c => {
                         s.budgeted += (m.expenses[c.id] || 0);
                         s.spent += getCatSpent(m, c.id);
                     });
+
                     data.categories.savings.forEach(group => {
                         group.items.forEach(c => {
                             s.budgeted += (m.expenses[c.id] || 0);
@@ -271,15 +306,27 @@
                 }
             };
 
-            const addCategory = (type, name) => {
+            // MODIFIED: Add Variable Category to specific month
+            const addCategory = (year, mIdx, name) => {
                 if(!name) return;
                 const id = generateId(name);
-                setData(d => ({...d, categories: {...d.categories, [type]: [...(d.categories[type]||[]), {id, label: name}]}}));
+                updateMonth(year, mIdx, m => ({
+                    ...m,
+                    variableCategories: [...(m.variableCategories || []), {id, label: name}]
+                }));
                 setInputs(prev => ({...prev, varCat: ''}));
             };
-            const deleteCategory = (type, id) => {
-                if(confirm("Delete category?")) setData(d => ({...d, categories: {...d.categories, [type]: d.categories[type].filter(c => c.id !== id)}}));
+
+            // MODIFIED: Delete Variable Category from specific month
+            const deleteCategory = (year, mIdx, id) => {
+                if(confirm("Delete category and its budget? Transactions will remain but be hidden.")) {
+                    updateMonth(year, mIdx, m => ({
+                        ...m,
+                        variableCategories: m.variableCategories.filter(c => c.id !== id)
+                    }));
+                }
             };
+            
             const deleteYear = (year) => {
                 if(confirm(`Delete ${year}?`)) setData(d => { const newYears = { ...d.years }; delete newYears[year]; return { ...d, years: newYears }; });
             };
@@ -303,6 +350,33 @@
                     d.categories.savings.forEach(group => group.items.forEach(item => { if (currentMonth.expenses[item.id]) newSpent[item.id] = currentMonth.expenses[item.id]; }));
                     return { ...d, years: { ...d.years, [year]: { ...d.years[year], [mIdx]: { ...currentMonth, spent: newSpent } } } };
                 });
+            };
+
+            // NEW: Copy from Previous Month (Smart Year Rollover)
+            const copyFromPrevious = (year, mIdx) => {
+                let prevYear = year;
+                let prevMonthIdx = mIdx - 1;
+                
+                if (prevMonthIdx < 0) {
+                    prevYear = (parseInt(year) - 1).toString();
+                    prevMonthIdx = 11;
+                }
+
+                if (!data.years[prevYear]) {
+                    alert("No previous year found to copy from.");
+                    return;
+                }
+
+                const prevMonthData = data.years[prevYear][prevMonthIdx];
+                const prevMonthName = MONTHS[prevMonthIdx];
+
+                if(confirm(`Copy Budget & Categories from ${prevMonthName} ${prevYear}? This overwrites current Variable categories.`)) {
+                    updateMonth(year, mIdx, m => ({
+                        ...m,
+                        variableCategories: [...(prevMonthData.variableCategories || [])], // Copy categories
+                        expenses: { ...m.expenses, ...prevMonthData.expenses } // Merge budget values (Fixed/Savings + Variable)
+                    }));
+                }
             };
 
             const addLog = () => {
@@ -369,7 +443,9 @@
                                                     </div>
                                                     {isExpanded && (
                                                         <div className="p-4 bg-white">
-                                                            <div className="flex justify-end gap-2 mb-4">
+                                                            {/* HEADER BUTTONS */}
+                                                            <div className="flex flex-wrap justify-end gap-2 mb-4">
+                                                                <button onClick={()=>copyFromPrevious(year, mIdx)} className="text-xs flex items-center gap-1 bg-gray-100 text-gray-700 px-3 py-1 rounded hover:bg-gray-200 transition border border-gray-200"><Icons.Copy/> Copy from {mIdx === 0 ? "Dec" : MONTHS[mIdx-1]}</button>
                                                                 <button onClick={()=>autofillSpent(year, mIdx)} className="text-xs flex items-center gap-1 bg-green-100 text-green-700 px-3 py-1 rounded hover:bg-green-200 transition border border-green-200"><Icons.Check/> Match Spent to Budget</button>
                                                                 <button onClick={()=>autofillBudget(year, mIdx)} className="text-xs flex items-center gap-1 bg-blue-100 text-blue-700 px-3 py-1 rounded hover:bg-blue-200 transition border border-blue-200"><Icons.Bolt/> Apply Budget to All Months</button>
                                                             </div>
@@ -447,7 +523,8 @@
                                                                     <div>
                                                                         <h4 className="font-bold text-sm text-gray-600 border-b mb-2">Variable Expenses</h4>
                                                                         <div className="space-y-2">
-                                                                            {data.categories.variable.map(c => {
+                                                                            {/* USE MONTHLY CATEGORIES */}
+                                                                            {(mData.variableCategories || []).map(c => {
                                                                                 const spent = getCatSpent(mData, c.id);
                                                                                 const bud = mData.expenses[c.id] || 0;
                                                                                 const remaining = bud - spent;
@@ -455,7 +532,7 @@
                                                                                 return (
                                                                                     <div key={c.id} className="text-xs border rounded bg-gray-50 p-2">
                                                                                         <div className="flex justify-between items-center mb-1">
-                                                                                            <div className="flex gap-1 items-center"><span onClick={()=>setActiveTransactionCategory(isOpen ? null : {year, month: mIdx, cat: c.id})} className="font-bold cursor-pointer text-blue-600 hover:underline">{c.label}</span><button onClick={()=>deleteCategory('variable', c.id)} className="text-gray-300 hover:text-red-400"><Icons.Trash/></button></div>
+                                                                                            <div className="flex gap-1 items-center"><span onClick={()=>setActiveTransactionCategory(isOpen ? null : {year, month: mIdx, cat: c.id})} className="font-bold cursor-pointer text-blue-600 hover:underline">{c.label}</span><button onClick={()=>deleteCategory(year, mIdx, c.id)} className="text-gray-300 hover:text-red-400"><Icons.Trash/></button></div>
                                                                                             <div className="flex gap-2 items-center"><input type="number" className="w-16 border rounded px-1 h-6 text-right" value={mData.expenses[c.id]||''} placeholder="Bud" onChange={e=>updateMonth(year, mIdx, m => ({...m, expenses: {...m.expenses, [c.id]: parseFloat(e.target.value)||0}}))} /><div className="flex flex-col items-end w-16"><span className="text-[10px] text-gray-500">Spent: ${Number(spent).toFixed(2)}</span><span className={`text-[10px] font-bold ${remaining < 0 ? 'text-red-500' : 'text-green-600'}`}>Left: ${Number(remaining).toFixed(2)}</span></div></div>
                                                                                         </div>
                                                                                         {isOpen && (
@@ -467,7 +544,7 @@
                                                                                     </div>
                                                                                 )
                                                                             })}
-                                                                            <div className="pt-2 flex flex-col sm:flex-row gap-2"><input placeholder="New Variable Cat" className="w-full text-xs border rounded px-1" value={inputs.varCat} onChange={e=>setInputs({...inputs, varCat:e.target.value})}/><button onClick={()=>addCategory('variable', inputs.varCat)} className="bg-gray-200 rounded px-2 w-full sm:w-auto"><Icons.Plus/></button></div>
+                                                                            <div className="pt-2 flex flex-col sm:flex-row gap-2"><input placeholder="New Variable Cat" className="w-full text-xs border rounded px-1" value={inputs.varCat} onChange={e=>setInputs({...inputs, varCat:e.target.value})}/><button onClick={()=>addCategory(year, mIdx, inputs.varCat)} className="bg-gray-200 rounded px-2 w-full sm:w-auto"><Icons.Plus/></button></div>
                                                                         </div>
                                                                     </div>
                                                                     <div className="bg-red-50 p-3 rounded border border-red-100">
@@ -505,7 +582,6 @@
                     setLogDate(new Date().toISOString().split('T')[0]);
                 };
 
-                // --- NEW CHART LOGIC ---
                 const historyMap = {};
                 [...data.assets, ...data.debts].forEach(item => {
                     (item.history || []).forEach(log => { historyMap[log.date] = true; });
@@ -529,7 +605,6 @@
 
                 return (
                     <div>
-                        {/* CHART SECTION */}
                         {chartData.length > 1 && (
                             <div className="bg-white p-6 rounded-xl shadow-sm mb-8">
                                 <h3 className="font-bold text-gray-700 mb-4">Net Worth Trend</h3>
@@ -537,10 +612,8 @@
                                     <svg viewBox="0 0 300 100" className="w-full h-full overflow-visible" preserveAspectRatio="none">
                                         <line x1="0" y1="0" x2="300" y2="0" stroke="#e5e7eb" strokeWidth="1" strokeDasharray="4" />
                                         <line x1="0" y1="50" x2="300" y2="50" stroke="#e5e7eb" strokeWidth="1" strokeDasharray="4" />
-                                        
                                         <polyline fill="none" stroke="#22c55e" strokeWidth="2" points={getPoints('assets')} />
                                         <polyline fill="none" stroke="#ef4444" strokeWidth="2" points={getPoints('debts')} />
-
                                         {chartData.map((d, i) => {
                                             const x = (i / (chartData.length - 1 || 1)) * 300;
                                             const yAssets = 100 - (d.assets / maxVal) * 100;
@@ -553,13 +626,9 @@
                                             );
                                         })}
                                     </svg>
-                                    
-                                    {/* Y-Axis Labels */}
                                     <div className="absolute -left-12 -top-3 text-xs text-gray-400 w-10 text-right">${(maxVal/1000).toLocaleString()}k</div>
                                     <div className="absolute -left-12 top-1/2 text-xs text-gray-400 w-10 text-right">${(maxVal/2000).toLocaleString()}k</div>
                                     <div className="absolute -left-12 -bottom-3 text-xs text-gray-400 w-10 text-right">$0</div>
-
-                                    {/* X-Axis Labels */}
                                     <div className="absolute -bottom-6 left-0 text-xs text-gray-400">{chartData[0].date}</div>
                                     <div className="absolute -bottom-6 right-0 text-xs text-gray-400">{chartData[chartData.length-1].date}</div>
                                 </div>
@@ -607,7 +676,6 @@
                             </div>
                         </div>
 
-                        {/* HISTORY MODAL MOBILE FIX */}
                         {selectedItem && (
                             <div className="fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4">
                                 <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
@@ -616,7 +684,6 @@
                                         <button onClick={()=>setSelectedItem(null)} className="text-slate-400 hover:text-white"><Icons.X/></button>
                                     </div>
                                     <div className="p-4">
-                                        {/* MOBILE FIX: Vertical Stack */}
                                         <div className="flex flex-col gap-2 mb-4">
                                             <label className="text-xs font-bold text-gray-500">Date</label>
                                             <input type="date" className="border rounded px-2 py-2 w-full" value={logDate} onChange={e=>setLogDate(e.target.value)} />
@@ -676,7 +743,11 @@
                     let breakdown = {};
                     activeMonths.forEach(m => {
                         data.categories.fixed.forEach(group => { let groupTotal = 0; group.items.forEach(c => { groupTotal += (m.spent[c.id] || 0); }); if(groupTotal > 0) breakdown[group.label] = (breakdown[group.label] || 0) + groupTotal; });
-                        data.categories.variable.forEach(c => { const val = getCatSpent(m, c.id) || 0; if(val > 0) breakdown[c.label] = (breakdown[c.label] || 0) + val; });
+                        
+                        // NEW VARIABLE LOGIC FOR ANALYTICS
+                        const varCats = m.variableCategories || [];
+                        varCats.forEach(c => { const val = getCatSpent(m, c.id) || 0; if(val > 0) breakdown[c.label] = (breakdown[c.label] || 0) + val; });
+
                         data.categories.savings.forEach(group => { let groupTotal = 0; group.items.forEach(c => { groupTotal += (m.spent[c.id] || 0); }); if(groupTotal > 0) breakdown[group.label] = (breakdown[group.label] || 0) + groupTotal; });
                         data.debts.forEach(d => { const val = (m.debts?.[d.id]?.payment || 0); if(val > 0) breakdown[d.label] = (breakdown[d.label] || 0) + val; });
                     });
@@ -828,7 +899,7 @@
             return (
                 <div className="max-w-7xl mx-auto p-4 pb-20">
                     <div className="flex flex-col md:flex-row justify-between items-center mb-6">
-                        <div className="flex items-center gap-3"><h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Financial OS <span className="text-sm font-normal text-slate-400 ml-2">v19.1</span></h1>{user && <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">{user.displayName}</span>}</div>
+                        <div className="flex items-center gap-3"><h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Financial OS <span className="text-sm font-normal text-slate-400 ml-2">v20</span></h1>{user && <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">{user.displayName}</span>}</div>
                         <div className="flex gap-2 mt-4 md:mt-0">{user && <button onClick={logout} className="bg-white border text-red-500 px-3 py-1.5 rounded text-sm flex gap-2 hover:bg-gray-50"><Icons.LogOut/> Sign Out</button>}</div>
                     </div>
                     <div className="flex gap-1 bg-white p-1 rounded-lg shadow-sm mb-6 overflow-x-auto">{['budget', 'net worth', 'analytics', 'strategy'].map(t => (<button key={t} onClick={()=>setActiveTab(t)} className={`px-4 py-2 rounded-md font-bold text-sm capitalize whitespace-nowrap transition-colors ${activeTab===t ? 'bg-slate-800 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>{t}</button>))}</div>
