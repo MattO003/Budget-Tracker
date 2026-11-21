@@ -11,28 +11,34 @@
 //   preferences.compactMode  boolean from Update_21
 //   assets[].type            "Asset" on some assets (unused label)
 //
-// Fields added by this version:
-//   preferences.appearance   'light' | 'dark' | 'system' (falls back to darkMode)
+// Fields added by this version (all optional):
+//   preferences.appearance            'light' | 'dark' | 'system' (falls back to darkMode)
+//   categories.startingVariable       [{id,label}] spending categories a newly added year starts with
+//   categories.{fixed,savings}[].archived and .items[].archived
+//                                     hidden from months where they have no amounts
+//   years[y][m].transactions[c][].date  'YYYY-MM-DD' (older purchases have no date)
 
 export const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
-export const emptyMonth = () => ({
+export const DEFAULT_STARTING_CATEGORIES = [
+  { id: 'groceries', label: 'Groceries' },
+  { id: 'gas', label: 'Gas' },
+];
+
+export const emptyMonth = (starting = DEFAULT_STARTING_CATEGORIES) => ({
   income: [],
   expenses: {},
   spent: {},
   transactions: {},
   debts: {},
-  variableCategories: [
-    { id: 'groceries', label: 'Groceries' },
-    { id: 'gas', label: 'Gas' },
-  ],
+  variableCategories: starting.map((c) => ({ id: c.id, label: c.label })),
 });
 
-export const emptyYear = () => {
+export const emptyYear = (starting = DEFAULT_STARTING_CATEGORIES) => {
   const y = {};
-  for (let i = 0; i < 12; i++) y[i] = emptyMonth();
+  for (let i = 0; i < 12; i++) y[i] = emptyMonth(starting);
   return y;
 };
 

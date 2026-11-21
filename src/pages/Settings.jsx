@@ -7,8 +7,10 @@ import { BackupError, downloadBackup, parseBackup } from '../data/backup.js';
 import Icon from '../components/Icon.jsx';
 import Modal from '../components/Modal.jsx';
 import { useToast } from '../components/Toasts.jsx';
+import SettingsCategories from './SettingsCategories.jsx';
 
 const TABS = [
+  ['categories', 'Categories'],
   ['backup', 'Backup'],
   ['appearance', 'Appearance'],
   ['account', 'Account'],
@@ -87,6 +89,17 @@ function BackupTab({ data, replaceAll, writesEnabled }) {
 
   return (
     <div className="stack measure">
+      <section className="card pad stack tight">
+        <h2>What’s in your account</h2>
+        <table className="compare">
+          <tbody>
+            {COMPARE_ROWS.map(([label, get]) => (
+              <tr key={label}><td>{label}</td><td>{get(current)}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
       <section className="card pad stack tight">
         <h2>Download a backup</h2>
         <p className="muted">
@@ -222,8 +235,8 @@ function AccountTab({ user, beforeSignOut }) {
   );
 }
 
-export default function Settings({ data, user, theme, onTheme, replaceAll, writesEnabled, beforeSignOut }) {
-  const initial = TABS.some(([t]) => t === subPage()) ? subPage() : 'backup';
+export default function Settings({ data, update, user, theme, onTheme, replaceAll, writesEnabled, beforeSignOut }) {
+  const initial = TABS.some(([t]) => t === subPage()) ? subPage() : 'categories';
   const [tab, setTab] = useState(initial);
 
   useEffect(() => {
@@ -247,6 +260,7 @@ export default function Settings({ data, user, theme, onTheme, replaceAll, write
           </button>
         ))}
       </div>
+      {tab === 'categories' && <SettingsCategories data={data} update={update} />}
       {tab === 'backup' && <BackupTab data={data} replaceAll={replaceAll} writesEnabled={writesEnabled} />}
       {tab === 'appearance' && <AppearanceTab theme={theme} onTheme={onTheme} />}
       {tab === 'account' && <AccountTab user={user} beforeSignOut={beforeSignOut} />}

@@ -1,8 +1,11 @@
 import { useEffect, useRef } from 'react';
 import Icon from './Icon.jsx';
 
-/** Dialog with a title bar; closes on Escape or a click on the backdrop. */
-export default function Modal({ title, onClose, children, footer, size }) {
+/**
+ * Dialog with a title bar; closes on Escape or a click on the backdrop.
+ * Pass onSubmit to make the body + footer one form (Enter submits).
+ */
+export default function Modal({ title, onClose, children, footer, size, onSubmit }) {
   const ref = useRef(null);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -25,8 +28,23 @@ export default function Modal({ title, onClose, children, footer, size }) {
             <Icon name="x" />
           </button>
         </div>
-        <div className="modal-body">{children}</div>
-        {footer && <div className="modal-foot">{footer}</div>}
+        {onSubmit ? (
+          <form
+            noValidate
+            onSubmit={(e) => {
+              e.preventDefault();
+              onSubmit(e);
+            }}
+          >
+            <div className="modal-body">{children}</div>
+            {footer && <div className="modal-foot">{footer}</div>}
+          </form>
+        ) : (
+          <>
+            <div className="modal-body">{children}</div>
+            {footer && <div className="modal-foot">{footer}</div>}
+          </>
+        )}
       </div>
     </div>
   );

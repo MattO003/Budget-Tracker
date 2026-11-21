@@ -52,7 +52,8 @@ function Avatar({ user }) {
   );
 }
 
-export default function Shell({ user, page, theme, onTheme, status, lastSavedAt, children }) {
+export default function Shell({ user, page, theme, onTheme, status, lastSavedAt, onQuickAdd, privacy, onTogglePrivacy, children }) {
+  const privacyLabel = privacy ? 'Show amounts' : 'Hide amounts';
   const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia?.('(prefers-color-scheme: dark)').matches);
   return (
     <div className="app">
@@ -61,6 +62,9 @@ export default function Shell({ user, page, theme, onTheme, status, lastSavedAt,
           <div className="brand-mark">F</div>
           <b>Financial OS</b>
         </div>
+        <button className="btn primary" type="button" onClick={onQuickAdd}>
+          <Icon name="plus" size={16} /> Add transaction <kbd title="Keyboard shortcut">N</kbd>
+        </button>
         <nav className="nav">
           {PAGES.map((p) => (
             <a key={p.id} href={href(p.id)} aria-current={page === p.id ? 'page' : undefined}>
@@ -70,6 +74,9 @@ export default function Shell({ user, page, theme, onTheme, status, lastSavedAt,
           ))}
         </nav>
         <div className="side-foot">
+          <button className="btn ghost" type="button" onClick={onTogglePrivacy} aria-pressed={privacy} style={{ justifyContent: 'flex-start' }}>
+            <Icon name={privacy ? 'eyeOff' : 'eye'} size={16} /> {privacyLabel}
+          </button>
           <div className="seg" role="group" aria-label="Theme">
             {THEMES.map(([t, icon, label]) => (
               <button key={t} type="button" onClick={() => onTheme(t)} aria-pressed={theme === t} aria-label={`${label} theme`} title={label} style={{ flex: 1, display: 'grid', placeItems: 'center' }}>
@@ -94,6 +101,9 @@ export default function Shell({ user, page, theme, onTheme, status, lastSavedAt,
             <b>Financial OS</b>
           </div>
           <div className="row" style={{ gap: 2 }}>
+            <button className="iconbtn" type="button" onClick={onTogglePrivacy} aria-pressed={privacy} aria-label={privacyLabel}>
+              <Icon name={privacy ? 'eyeOff' : 'eye'} />
+            </button>
             <button className="iconbtn" type="button" onClick={() => onTheme(isDark ? 'light' : 'dark')} aria-label="Switch theme">
               <Icon name={isDark ? 'sun' : 'moon'} />
             </button>
@@ -113,6 +123,9 @@ export default function Shell({ user, page, theme, onTheme, status, lastSavedAt,
           </a>
         ))}
       </nav>
+      <button className="fab" type="button" onClick={onQuickAdd} aria-label="Add transaction">
+        <Icon name="plus" size={22} />
+      </button>
     </div>
   );
 }
