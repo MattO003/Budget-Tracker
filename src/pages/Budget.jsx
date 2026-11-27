@@ -160,9 +160,16 @@ export default function Budget({ data, update }) {
           <h1>{title}</h1>
           <button className="iconbtn" type="button" aria-label={mode === 'month' ? 'Next month' : 'Next year'} disabled={!next} onClick={() => go(next)}><Icon name="right" size={20} /></button>
         </div>
-        <div className="seg" role="group" aria-label="Budget view">
-          <button type="button" aria-pressed={mode === 'month'} onClick={() => go(monthKey(year, mode === 'month' ? m : new Date().getFullYear() === Number(year) ? new Date().getMonth() : 0))}>Month</button>
-          <button type="button" aria-pressed={mode === 'year'} onClick={() => go(year)}>Year overview</button>
+        <div className="row">
+          {B.yearsOf(data).length > 1 && (
+            <select className="select" style={{ width: 'auto' }} aria-label="Go to year" value={year} onChange={(e) => go(mode === 'month' ? monthKey(e.target.value, m) : e.target.value)}>
+              {B.yearsOf(data).map((y) => <option key={y} value={y}>{y}</option>)}
+            </select>
+          )}
+          <div className="seg" role="group" aria-label="Budget view">
+            <button type="button" aria-pressed={mode === 'month'} onClick={() => go(monthKey(year, mode === 'month' ? m : new Date().getFullYear() === Number(year) ? new Date().getMonth() : 0))}>Month</button>
+            <button type="button" aria-pressed={mode === 'year'} onClick={() => go(year)}>Year overview</button>
+          </div>
         </div>
       </div>
       {mode === 'month' && !next && m === 11 && (

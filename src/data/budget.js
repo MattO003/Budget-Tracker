@@ -142,16 +142,78 @@ export const insertSpendingCategory = (data, year, m, index, cat) =>
 export const previousMonth = (year, m) => (m === 0 ? { year: String(Number(year) - 1), m: 11 } : { year: String(year), m: m - 1 });
 export const nextMonth = (year, m) => (m === 11 ? { year: String(Number(year) + 1), m: 0 } : { year: String(year), m: m + 1 });
 
-/** Original "Copy from previous month": copies spending categories and budget amounts. Returns null if there's no previous month. */
+const hasPurchases = (month, catId) => (month.transactions?.[catId] || []).length > 0;
+const labelKey = (label) => String(label ?? '').trim().toLowerCase();
+
+/**
+ * "Copy from previous month": copies spending categories and budget amounts.
+ * Returns null if there's no previous month.
+ *
+ * The original replaced this month's category list outright, so a category
+ * that already had purchases dropped out and its purchases stopped counting.
+ * Now a category with purchases is kept:
+ * if the previous month has one with the same name, this month's takes its
+ * place and gets its budget; otherwise it's added after the copied ones.
+ */
 export function copyFromPrevious(data, year, m) {
   const p = previousMonth(year, m);
   const prev = data.years[p.year]?.[p.m];
   if (!prev) return null;
-  return updateMonth(data, year, m, (mo) => ({
-    ...mo,
-    variableCategories: [...(prev.variableCategories || [])],
-    expenses: { ...mo.expenses, ...prev.expenses },
-  }));
+  return updateMonth(data, year, m, (mo) => {
+    const expenses = { ...mo.expenses, ...prev.expenses };
+    const keep = mo.variableCategories.filter((c) => hasPurchases(mo, c.id));
+    const list = (prev.variableCategories || []).map((pc) => {
+      const mine = keep.find((c) => c.id === pc.id) || keep.find((c) => labelKey(c.label) === labelKey(pc.label));
+      if (!mine || mine.id === pc.id) return pc;
+      if (prev.expenses?.[pc.id] !== undefined) expenses[mine.id] = prev.expenses[pc.id];
+      return mine;
+    });
+    for (const c of keep) if (!list.some((x) => x.id === c.id)) list.push(c);
+    return { ...mo, variableCategories: list, expenses };
+  });
+}
+
+/** Best name for a category id that's no longer listed: its name in any other month, else from the id ("vacation_123" → "Vacation"). */
+function labelForCategoryId(data, catId) {
+  const lists = [
+    ...Object.values(data.years).flatMap((y) => Object.values(y).map((mo) => mo?.variableCategories || [])),
+    data.categories.startingVariable || [],
+    Array.isArray(data.categories.variable) ? data.categories.variable : [],
+  ];
+  for (const list of lists) {
+    const found = list.find((c) => c?.id === catId && String(c.label ?? '').trim());
+    if (found) return String(found.label).trim();
+  }
+  const base = String(catId).replace(/_\d+$/, '').replace(/_/g, ' ').trim() || String(catId);
+  return base[0].toUpperCase() + base.slice(1);
+}
+
+/**
+ * Purchases filed under a category that is no longer in that month's list.
+ * Neither this app nor the original counts or shows them.
+ * Returns [{year, m, catId, label, count, total}].
+ */
+export function hiddenPurchases(data) {
+  const out = [];
+  for (const y of yearsOf(data)) {
+    for (let m = 0; m < 12; m++) {
+      const mo = data.years[y][m];
+      if (!mo) continue;
+      const listed = new Set((mo.variableCategories || []).map((c) => c.id));
+      for (const [catId, list] of Object.entries(mo.transactions || {})) {
+        if (listed.has(catId) || !Array.isArray(list) || list.length === 0) continue;
+        out.push({ year: y, m, catId, label: labelForCategoryId(data, catId), count: list.length, total: sumBy(list, (t) => num(t.amount)) });
+      }
+    }
+  }
+  return out;
+}
+
+/** Put a dropped category back in its month (same id), so its purchases and budget count again. */
+export function restoreHiddenCategory(data, year, m, catId, label) {
+  const mo = data.years[year]?.[m];
+  if (!mo || mo.variableCategories.some((c) => c.id === catId)) return data;
+  return updateMonth(data, year, m, (x) => ({ ...x, variableCategories: [...x.variableCategories, { id: catId, label }] }));
 }
 
 /** Original "Match Spent to Budget": paid = budget for every bill and savings bucket with a budget. */

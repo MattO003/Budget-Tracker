@@ -152,6 +152,52 @@ describe('budget page', () => {
     expect(latest.years[Y][other].expenses).toEqual(latest.years[Y][M].expenses);
   });
 
+  it('shows purchases hidden in a dropped category and brings them back', async () => {
+    const d = sample();
+    d.years[Y][M].transactions.vacation_1700000000000 = [{ id: 9, desc: 'Flights', amount: 400 }, { id: 10, desc: 'Hotel', amount: 250.5 }];
+    await mount(d, (p) => <Budget {...p} />);
+    const banner = byText('.banner', 'counted');
+    expect(banner.textContent).toContain('2 purchases ($650.50)');
+    expect(banner.textContent).toContain('“Vacation”');
+    await click(byText('.banner button', 'Bring back Vacation'));
+    expect(latest.years[Y][M].variableCategories.at(-1)).toEqual({ id: 'vacation_1700000000000', label: 'Vacation' });
+    expect(byText('.banner', 'counted')).toBeUndefined();
+    expect(byText('.cat-head', 'Vacation').textContent).toContain('2 purchases');
+    await click(byText('.toast button', 'Undo'));
+    expect(latest.years[Y][M].variableCategories.some((c) => c.id === 'vacation_1700000000000')).toBe(false);
+  });
+
+  it('asks before removing a category that has purchases, but not an empty one', async () => {
+    const d = sample();
+    d.years[Y][M].variableCategories.push({ id: 'misc', label: 'Misc' });
+    await mount(d, (p) => <Budget {...p} />);
+    await click(byText('.cat-head', 'Misc'));
+    await click(byText('button', 'Remove category'));
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(latest.years[Y][M].variableCategories.map((c) => c.id)).toEqual(['groceries', 'gas']);
+
+    await click(byText('.cat-head', 'Gas'));
+    await click(byText('button', 'Remove category'));
+    expect(document.querySelector('[role="dialog"]').textContent).toContain('1 purchase ($46.10)');
+    await click(byText('[role="dialog"] button', 'Remove category'));
+    expect(latest.years[Y][M].variableCategories.map((c) => c.id)).toEqual(['groceries']);
+    expect(byText('.banner', 'counted').textContent).toContain('Bring back Gas');
+  });
+
+  it('jumps to another year with the year picker', async () => {
+    const d = sample();
+    const other = String(Number(Y) - 3);
+    d.years[other] = createDefaultData(Number(other)).years[other];
+    await mount(d, (p) => <Budget {...p} />);
+    const select = host.querySelector('select[aria-label="Go to year"]');
+    expect([...select.options].map((o) => o.value)).toEqual([other, Y]);
+    await act(async () => {
+      select.value = other;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(window.location.hash).toBe(`#/budget/${other}-${pad2(M + 1)}`);
+  });
+
   it('year overview lists every month and opens one', async () => {
     window.location.hash = `#/budget/${Y}`;
     await mount(sample(), (p) => <Budget {...p} />);

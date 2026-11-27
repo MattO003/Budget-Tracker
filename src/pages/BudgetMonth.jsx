@@ -28,7 +28,7 @@ function MonthActions({ data, update, year, m }) {
   const dialogs = {
     copy: {
       title: `Copy from ${prevName}?`,
-      body: `Copies ${prevName}’s spending categories and budget amounts into ${MONTHS[m]}. Amounts you’ve paid and purchases you’ve logged stay as they are.`,
+      body: `Copies ${prevName}’s spending categories and budget amounts into ${MONTHS[m]}. Amounts you’ve paid and purchases you’ve logged stay as they are, and categories that already have purchases are kept.`,
       label: 'Copy budget',
       go: () => run((d) => B.copyFromPrevious(d, year, m) ?? d, `Copied ${prevName}’s budget`),
     },
@@ -151,6 +151,7 @@ function ItemsTable({ data, update, month, year, m, type }) {
 
 function SpendingCategory({ cat, month, update, year, m, open, onToggle, index }) {
   const toast = useToast();
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const [date, setDate] = useState(() => defaultDateIn(year, m));
   const [desc, setDesc] = useState('');
   const [amount, setAmount] = useState('');
@@ -159,6 +160,10 @@ function SpendingCategory({ cat, month, update, year, m, open, onToggle, index }
   const over = spent > bud + 0.004;
   const txs = (month.transactions[cat.id] || []).map((t, i) => ({ t, i }));
   txs.sort((a, b) => String(a.t.date || '').localeCompare(String(b.t.date || '')) || a.i - b.i);
+  const remove = () => {
+    update((d) => B.removeSpendingCategory(d, year, m, cat.id));
+    toast(`Removed ${cat.label} from ${MONTHS[m]}`, { onUndo: () => update((d) => B.insertSpendingCategory(d, year, m, index, cat)) });
+  };
 
   return (
     <div className="cat">
@@ -217,21 +222,52 @@ function SpendingCategory({ cat, month, update, year, m, open, onToggle, index }
           </form>
           <div className="row between" style={{ marginTop: 12 }}>
             <span className="faint small">Purchases without a date were logged before dates were added.</span>
-            <button
-              className="btn sm danger"
-              type="button"
-              onClick={() => {
-                update((d) => B.removeSpendingCategory(d, year, m, cat.id));
-                toast(`Removed ${cat.label} from ${MONTHS[m]}`, { onUndo: () => update((d) => B.insertSpendingCategory(d, year, m, index, cat)) });
-              }}
-            >
+            <button className="btn sm danger" type="button" onClick={() => (txs.length ? setConfirmRemove(true) : remove())}>
               <Icon name="trash" size={14} /> Remove category
             </button>
           </div>
         </div>
       )}
+      {confirmRemove && (
+        <ConfirmDialog title={`Remove ${cat.label} from ${MONTHS[m]}?`} confirmLabel="Remove category" danger onConfirm={remove} onClose={() => setConfirmRemove(false)}>
+          <p>
+            {cat.label} has {txs.length} {txs.length === 1 ? 'purchase' : 'purchases'} (<Money value={spent} />) in {MONTHS[m]}. If you remove it, they stop
+            counting in this month’s totals and disappear from view.
+          </p>
+          <p className="muted small">They aren’t deleted: you can undo right after, or bring them back later from the notice at the top of this month.</p>
+        </ConfirmDialog>
+      )}
     </div>
   );
+}
+
+/** Notice for purchases hidden in a category that was dropped from this month, with a button to bring it back. */
+function HiddenPurchases({ data, update, year, m }) {
+  const toast = useToast();
+  const hidden = B.hiddenPurchases(data).filter((h) => h.year === String(year) && h.m === m);
+  if (hidden.length === 0) return null;
+  return hidden.map((h) => (
+    <div className="banner warn" role="status" key={h.catId}>
+      <Icon name="alert" size={16} />
+      <span className="row between" style={{ flex: 1 }}>
+        <span>
+          <b>{h.count} {h.count === 1 ? 'purchase' : 'purchases'} (<Money value={h.total} />) {h.count === 1 ? 'isn’t' : 'aren’t'} counted.</b>{' '}
+          {h.count === 1 ? 'It was' : 'They were'} logged under “{h.label}”, which is no longer one of {MONTHS[m]}’s categories.
+        </span>
+        <button
+          className="btn sm"
+          type="button"
+          onClick={() => {
+            const before = data.years[year];
+            update((d) => B.restoreHiddenCategory(d, year, m, h.catId, h.label));
+            toast(`Brought back ${h.label}`, { onUndo: () => update(restoreYear(year, before)) });
+          }}
+        >
+          Bring back {h.label}
+        </button>
+      </span>
+    </div>
+  ));
 }
 
 function SpendingCard({ month, update, year, m }) {
@@ -302,6 +338,7 @@ export default function BudgetMonth({ data, update, year, m }) {
   return (
     <>
       <MonthActions data={data} update={update} year={year} m={m} />
+      <HiddenPurchases data={data} update={update} year={year} m={m} />
       <div className="figs six">
         <div className="fig"><p className="eyebrow">Income</p><p className="v t-income"><Money value={stats.income} /></p></div>
         <div className="fig"><p className="eyebrow">Budgeted</p><p className="v"><Money value={stats.budgeted} /></p></div>

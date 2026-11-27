@@ -70,11 +70,52 @@ describe('net worth', () => {
 describe('month changes', () => {
   it('copy from previous month copies categories and merges budgets, like the original', () => {
     let d = sample();
+    d.years[2026][10].transactions = {}; // nothing logged yet: same result as the original
     d.years[2026][9].variableCategories = [{ id: 'dining_1', label: 'Dining' }];
     d.years[2026][9].expenses = { dining_1: 150, rent: 1500 };
     d = B.copyFromPrevious(d, '2026', 10);
     expect(d.years[2026][10].variableCategories).toEqual([{ id: 'dining_1', label: 'Dining' }]);
     expect(d.years[2026][10].expenses).toMatchObject({ dining_1: 150, rent: 1500, electric: 95 });
+  });
+  it('copy from previous keeps categories that already have purchases', () => {
+    let d = sample(); // November has purchases under groceries and gas
+    d.years[2026][9].variableCategories = [{ id: 'dining_1', label: 'Dining' }, { id: 'gas', label: 'Gas' }];
+    d.years[2026][9].expenses = { dining_1: 150, gas: 200 };
+    d = B.copyFromPrevious(d, '2026', 10);
+    expect(d.years[2026][10].variableCategories.map((c) => c.id)).toEqual(['dining_1', 'gas', 'groceries']);
+    expect(d.years[2026][10].expenses).toMatchObject({ dining_1: 150, gas: 200, groceries: 500 });
+    expect(B.hiddenPurchases(d)).toEqual([{ year: '2026', m: 10, catId: 'removed_cat', label: 'Removed cat', count: 1, total: 999 }]);
+  });
+  it('copy from previous uses this month’s category when the names match, with the copied budget', () => {
+    let d = sample();
+    d.years[2026][9].variableCategories = [{ id: 'groceries_99', label: 'groceries ' }];
+    d.years[2026][9].expenses = { groceries_99: 650 };
+    d = B.copyFromPrevious(d, '2026', 10);
+    expect(d.years[2026][10].variableCategories.map((c) => c.id)).toEqual(['groceries', 'gas']);
+    expect(d.years[2026][10].expenses.groceries).toBe(650);
+  });
+  it('finds purchases hidden in a dropped category and brings them back', () => {
+    // "Copy from previous month" dropped a category, leaving its purchases uncounted.
+    const d = sample();
+    const july = d.years[2026][6];
+    july.transactions.vacation_1700000000000 = [{ id: 5, desc: 'Flights', amount: 400 }, { id: 6, desc: 'Hotel', amount: 250.5 }];
+    july.expenses.vacation_1700000000000 = 7000;
+    const before = B.calcStats(d, [july]).spent;
+    const found = B.hiddenPurchases(d).find((h) => h.m === 6);
+    expect(found).toEqual({ year: '2026', m: 6, catId: 'vacation_1700000000000', label: 'Vacation', count: 2, total: 650.5 });
+
+    const fixed = B.restoreHiddenCategory(d, '2026', 6, found.catId, found.label);
+    expect(fixed.years[2026][6].variableCategories.at(-1)).toEqual({ id: 'vacation_1700000000000', label: 'Vacation' });
+    expect(B.calcStats(fixed, [fixed.years[2026][6]]).spent).toBeCloseTo(before + 650.5, 9);
+    expect(B.calcStats(fixed, [fixed.years[2026][6]]).budgeted).toBeGreaterThanOrEqual(7000);
+    expect(B.hiddenPurchases(fixed).some((h) => h.m === 6)).toBe(false);
+    expect(B.restoreHiddenCategory(fixed, '2026', 6, found.catId, found.label)).toBe(fixed); // already back: no change
+  });
+  it('names a hidden category from another month when it can', () => {
+    const d = sample();
+    d.years[2026][0].variableCategories.push({ id: 'apartmentitems_1', label: 'Apartment Items' });
+    d.years[2026][1].transactions.apartmentitems_1 = [{ id: 7, desc: 'Lamp', amount: 30 }];
+    expect(B.hiddenPurchases(d).find((h) => h.m === 1).label).toBe('Apartment Items');
   });
   it('copy from previous returns null when January has no previous year', () => {
     expect(B.copyFromPrevious(sample(), '2026', 0)).toBeNull();

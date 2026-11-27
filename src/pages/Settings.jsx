@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { signOut } from 'firebase/auth';
 import { auth } from '../lib/firebase.js';
-import { subPage } from '../lib/router.js';
+import { href, subPage } from '../lib/router.js';
+import { MONTHS, money, pad2 } from '../lib/format.js';
 import { summarize } from '../data/model.js';
+import { hiddenPurchases } from '../data/budget.js';
 import { BackupError, downloadBackup, parseBackup } from '../data/backup.js';
 import Icon from '../components/Icon.jsx';
 import Modal from '../components/Modal.jsx';
@@ -88,6 +90,7 @@ function BackupTab({ data, replaceAll, writesEnabled }) {
   };
 
   const current = summarize(data);
+  const hidden = hiddenPurchases(data);
 
   return (
     <div className="stack measure">
@@ -100,6 +103,20 @@ function BackupTab({ data, replaceAll, writesEnabled }) {
             ))}
           </tbody>
         </table>
+        {hidden.length > 0 && (
+          <div className="banner warn" role="status">
+            <Icon name="alert" size={16} />
+            <div className="stack tight" style={{ gap: 4 }}>
+              <b>Some purchases aren’t counted</b>
+              <span>They’re filed under a category that’s no longer in their month. Open the month to bring it back.</span>
+              {hidden.map((h) => (
+                <a key={`${h.year}-${h.m}-${h.catId}`} className="link" href={href('budget', `${h.year}-${pad2(h.m + 1)}`)}>
+                  {MONTHS[h.m]} {h.year}: {h.label}, {h.count} {h.count === 1 ? 'purchase' : 'purchases'} ({money(h.total)})
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="card pad stack tight">
