@@ -4,6 +4,7 @@ import { auth } from './lib/firebase.js';
 import { usePage } from './lib/router.js';
 import { themeFrom, useApplyTheme, withTheme } from './lib/theme.js';
 import { usePrivacy } from './lib/privacy.js';
+import { consumeAddShortcut } from './lib/install.js';
 import { useFinanceData } from './data/useFinanceData.js';
 import Shell from './components/Shell.jsx';
 import Icon from './components/Icon.jsx';
@@ -12,7 +13,9 @@ import { LoadErrorScreen, LoadingScreen, SignInScreen } from './components/Scree
 import Overview from './pages/Overview.jsx';
 import Budget from './pages/Budget.jsx';
 import Settings from './pages/Settings.jsx';
-import ComingSoon from './pages/ComingSoon.jsx';
+import NetWorth from './pages/NetWorth.jsx';
+import Goals from './pages/Goals.jsx';
+import Analytics from './pages/Analytics.jsx';
 
 /** Press N anywhere (not while typing) to add a transaction. */
 function useQuickAddShortcut(open, enabled) {
@@ -39,6 +42,12 @@ function SignedIn({ user }) {
 
   const openQuickAdd = useCallback(() => setQuickAdd(true), []);
   useQuickAddShortcut(openQuickAdd, Boolean(fin.data));
+
+  // Opened from the home-screen "Add transaction" shortcut: go straight to quick add.
+  const loaded = Boolean(fin.data);
+  useEffect(() => {
+    if (loaded && consumeAddShortcut()) setQuickAdd(true);
+  }, [loaded]);
 
   const setTheme = useCallback(
     (t) => fin.update((d) => ({ ...d, preferences: withTheme(d.preferences, t) })),
@@ -67,7 +76,9 @@ function SignedIn({ user }) {
         beforeSignOut={beforeSignOut}
       />
     );
-  else content = <ComingSoon page={page} />;
+  else if (page === 'net-worth') content = <NetWorth {...common} />;
+  else if (page === 'goals') content = <Goals {...common} />;
+  else if (page === 'analytics') content = <Analytics {...common} />;
 
   return (
     <Shell

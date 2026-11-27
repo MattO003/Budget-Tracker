@@ -17,7 +17,7 @@
     --bg: #0c121a; --surface: #141c27; --surface-2: #1b2532; --line: #273345; --fg: #e5eaf1; --muted: #97a3b4; --faint: #6c788a;
     --accent: #7f95ff; --accent-soft: #1f2a4d; --on-accent: #0c121a;
     --income: #3fcf9f; --income-soft: #123329; --spend: #ff7d6c; --spend-soft: #3a1c18; --save: #b48eff; --save-soft: #2a1f45; --debt: #f0b24a; --debt-soft: #3a2c12;
-    --c1: #7f95ff; --c2: #3fcf9f; --c3: #ff8a5c; --c4: #b48eff; --c5: #f0c24a; --c6: #4cc6e6; --c7: #f07ab4; --c8: #98a6ba;
+    --c1: #7388f1; --c2: #09ac7f; --c3: #de6d3e; --c4: #9f79e8; --c5: #b58c07; --c6: #16a2c1; --c7: #d8649e; --c8: #98a6ba;
     --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 18px rgba(0, 0, 0, .2); --overlay: rgba(0, 0, 0, .6); color-scheme: dark;
   }
 }
@@ -25,7 +25,7 @@
   --bg: #0c121a; --surface: #141c27; --surface-2: #1b2532; --line: #273345; --fg: #e5eaf1; --muted: #97a3b4; --faint: #6c788a;
   --accent: #7f95ff; --accent-soft: #1f2a4d; --on-accent: #0c121a;
   --income: #3fcf9f; --income-soft: #123329; --spend: #ff7d6c; --spend-soft: #3a1c18; --save: #b48eff; --save-soft: #2a1f45; --debt: #f0b24a; --debt-soft: #3a2c12;
-  --c1: #7f95ff; --c2: #3fcf9f; --c3: #ff8a5c; --c4: #b48eff; --c5: #f0c24a; --c6: #4cc6e6; --c7: #f07ab4; --c8: #98a6ba;
+  --c1: #7388f1; --c2: #09ac7f; --c3: #de6d3e; --c4: #9f79e8; --c5: #b58c07; --c6: #16a2c1; --c7: #d8649e; --c8: #98a6ba;
   --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 18px rgba(0, 0, 0, .2); --overlay: rgba(0, 0, 0, .6); color-scheme: dark;
 }
 
@@ -264,10 +264,72 @@ table.tbl { border-collapse: collapse; width: 100%; }
 /* ---------- charts ---------- */
 .chart text { fill: var(--muted); font-size: 11px; font-family: var(--font-body); }
 .chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart .base { stroke: var(--faint); stroke-width: 1; }
+.chart .cross { stroke: var(--faint); stroke-width: 1; stroke-dasharray: 3 3; }
+.chart:focus { outline: none; }
+.chart:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 6px; }
+.chart-box { position: relative; }
+.chart-tip { position: absolute; z-index: 5; pointer-events: none; display: flex; flex-direction: column; gap: 3px; min-width: 170px; padding: 9px 11px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, .16); font-size: 12.5px; }
+.chart-tip .row { flex-wrap: nowrap; gap: 14px; }
+.chart-tip .dot { width: 8px; height: 8px; margin-right: 4px; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); padding-top: 8px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend .dash { display: inline-block; width: 16px; border-top: 2px dashed; }
+.split { display: flex; height: 14px; border-radius: 999px; overflow: hidden; background: var(--surface-2); gap: 2px; }
+.split i { display: block; height: 100%; }
+.split i:not([style*="width: 0"]) { min-width: 2px; }
+
+.donut-wrap { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+.donut { position: relative; width: 160px; height: 160px; flex: none; margin-inline: auto; }
+.donut circle { transition: stroke-width .15s, opacity .15s; cursor: default; }
+.donut-center { position: absolute; inset: 22px; display: grid; place-content: center; text-align: center; pointer-events: none; }
+.donut-center .eyebrow { max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.donut-list { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; }
+.donut-row { display: flex; justify-content: space-between; gap: 12px; padding: 5px 6px; margin-inline: -6px; border-radius: 6px; font-size: 13px; }
+.donut-row.on { background: var(--surface-2); }
+.donut-row.sub { padding-left: 23px; font-size: 12.5px; color: var(--muted); }
+
+.ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.nowrap { white-space: nowrap; }
+.grow { flex: 1; min-width: 0; }
+.chip.save { background: var(--save-soft); color: var(--save); }
+
+/* ---------- net worth ---------- */
+button.li { width: 100%; text-align: left; background: none; border-left: 0; border-right: 0; border-bottom: 0; font: inherit; color: inherit; }
+.li.click { cursor: pointer; }
+.li.click:hover { background: var(--surface-2); }
+.li.click:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.li.add-row { color: var(--accent); font-weight: 600; gap: 8px; }
+.big-num { font-family: var(--font-display); font-size: 28px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.log-box { display: flex; flex-direction: column; gap: 10px; padding: 14px; background: var(--surface-2); border-radius: 10px; }
+.hist { display: grid; grid-template-columns: minmax(0, 1fr) auto auto 32px; gap: 12px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.money.pct > span { left: auto; right: 10px; }
+.money.pct .input { padding-left: 10px; padding-right: 24px; }
+.check { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; }
+.check input { margin-top: 3px; width: 16px; height: 16px; accent-color: var(--accent); flex: none; }
+.scrim.drawer { justify-content: flex-end; padding: 0; }
+.scrim.drawer .modal { height: 100%; max-height: none; border-radius: 0; width: min(440px, 100%); border-width: 0 0 0 1px; display: flex; flex-direction: column; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); padding-right: env(safe-area-inset-right, 0px); }
+.scrim.drawer .modal-body { flex: 1; overflow: auto; }
+.modal:focus { outline: none; }
+
+/* ---------- goals ---------- */
+.goals { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.goal { display: flex; flex-direction: column; gap: 10px; padding: 18px; }
+.goal .big { font-family: var(--font-display); font-weight: 800; font-size: 22px; font-variant-numeric: tabular-nums; }
+.goal form .money { flex: 1; }
+.range { width: 100%; accent-color: var(--accent); }
+.plan-result { padding: 20px; background: var(--surface-2); border-radius: var(--r); display: flex; flex-direction: column; gap: 6px; align-self: start; }
+.plan-result hr { border: 0; border-top: 1px solid var(--line); margin: 10px 0; width: 100%; }
+.plan-date { font-family: var(--font-display); font-size: 32px; font-weight: 800; letter-spacing: -.02em; }
+
+/* ---------- phone app ---------- */
+.card.flat.on { border-color: var(--accent); }
+.steps { margin: 8px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
 
 /* ---------- privacy mode: blur every amount (hover to peek) ---------- */
 .privacy .m, .privacy .money .input:not(:focus) { filter: blur(7px); transition: filter .15s; }
 .privacy .m { user-select: none; }
 .privacy .m:hover { filter: blur(3px); }
+.privacy .chart .ylab { visibility: hidden; }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

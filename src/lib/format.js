@@ -35,3 +35,20 @@ export function defaultDateIn(year, monthIdx, now = new Date()) {
 }
 
 export const percent = (part, whole) => (whole > 0 ? (part / whole) * 100 : 0);
+
+/** Short axis label: $950, $12k, $1.2M (minus sign for negatives). */
+export function moneyShort(n) {
+  const v = Number(n) || 0;
+  const a = Math.abs(v);
+  const sign = v < 0 ? '−' : '';
+  if (a >= 1e6) return `${sign}$${+(a / 1e6).toFixed(a >= 1e7 ? 0 : 1)}M`;
+  if (a >= 1e3) return `${sign}$${+(a / 1e3).toFixed(a >= 1e4 ? 0 : 1)}k`;
+  return `${sign}$${Math.round(a)}`;
+}
+
+/** "2026-11-05" → "Nov 5, 2026" */
+export function longDate(iso) {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+  const [y, m, d] = iso.split('-');
+  return `${MONTHS_SHORT[Number(m) - 1]} ${Number(d)}, ${y}`;
+}

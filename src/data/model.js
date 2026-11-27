@@ -17,6 +17,10 @@
 //   categories.{fixed,savings}[].archived and .items[].archived
 //                                     hidden from months where they have no amounts
 //   years[y][m].transactions[c][].date  'YYYY-MM-DD' (older purchases have no date)
+//   assets[].cash                     true = counts as cash (for cash runway in Analytics)
+//   debts[].apr                       interest rate in % (the original planner read history[0].rate, which is still a fallback)
+//   debts[].payment                   usual monthly payment, for the payoff planner
+//   savingsGoals[].bucketId           savings bucket id; everything saved into it counts toward the goal
 
 export const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 

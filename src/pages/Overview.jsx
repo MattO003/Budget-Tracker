@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import Icon from '../components/Icon.jsx';
 import Sparkline from '../components/Sparkline.jsx';
+import { goalProgress } from '../data/worth.js';
 import { Bar, Money } from '../components/Money.jsx';
 import { MONTHS, shortDate } from '../lib/format.js';
 import { href } from '../lib/router.js';
@@ -150,11 +151,12 @@ export default function Overview({ data, update, onQuickAdd }) {
               <div className="card-head"><h2>Goals</h2><a className="link small" href={href('goals')}>All goals</a></div>
               <div className="list">
                 {data.savingsGoals.map((g) => {
-                  const pct = g.target > 0 ? (Number(g.saved) || 0) / g.target : 0;
+                  const progress = goalProgress(data, g);
+                  const pct = g.target > 0 ? progress / g.target : 0;
                   return (
                     <div className="li col" key={g.id}>
                       <div className="row between" style={{ flexWrap: 'nowrap' }}><span className="name">{g.label}</span><span className="num muted small">{Math.round(pct * 100)}%</span></div>
-                      <Bar value={Number(g.saved) || 0} max={g.target} kind="save" overIsBad={false} />
+                      <Bar value={progress} max={g.target} kind="save" overIsBad={false} />
                     </div>
                   );
                 })}

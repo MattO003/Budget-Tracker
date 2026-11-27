@@ -3,9 +3,12 @@ import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
 import { ToastProvider } from './components/Toasts.jsx';
 import { applyCachedTheme } from './lib/theme.js';
+import { captureAddShortcut, listenForInstall } from './lib/install.js';
 import './styles.css';
 
 applyCachedTheme();
+listenForInstall();
+captureAddShortcut();
 
 /** Replaces the original app's alert() popups: show a calm screen instead of a broken page. */
 class ErrorBoundary extends Component {

@@ -15,6 +15,9 @@ const { default: Overview } = await import('./Overview.jsx');
 const { default: Budget } = await import('./Budget.jsx');
 const { default: Settings } = await import('./Settings.jsx');
 const { ToastProvider } = await import('../components/Toasts.jsx');
+const { default: NetWorth } = await import('./NetWorth.jsx');
+const { default: Goals } = await import('./Goals.jsx');
+const { default: Analytics } = await import('./Analytics.jsx');
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const user = { uid: 'u1', displayName: 'Test Person', email: 'test@example.com' };
@@ -266,5 +269,161 @@ describe('settings', () => {
     await click(byText('[role="tab"]', 'Appearance'));
     await click(byText('button', 'Dark'));
     expect(p0.onTheme).toHaveBeenCalledWith('dark');
+  });
+});
+
+function withWorth() {
+  const d = sample();
+  d.assets.push(
+    { id: 1, label: 'Checking', type: 'Asset', history: [{ date: '2025-01-01', value: 1000 }, { date: '2025-06-01', value: 3000 }] },
+    { id: 2, label: 'Roth', history: [{ date: '2025-03-01', value: 8000 }] },
+  );
+  d.debts.push({ id: 'card_1', label: 'Card', history: [{ date: '2025-01-01', value: 1200 }] });
+  d.years[Y][M].debts.card_1 = { payment: 150 };
+  return d;
+}
+
+describe('net worth page', () => {
+  it('shows totals, assets and debts', async () => {
+    await mount(withWorth(), (p) => <NetWorth {...p} />);
+    expect(host.querySelector('h1').textContent).toBe('$9,800');
+    const card = (title) => [...host.querySelectorAll('.card')].find((c) => c.querySelector('h2')?.textContent === title);
+    expect(card('Assets').textContent).toContain('Checking');
+    expect(card('Debts').textContent).toContain('No APR set');
+    expect(host.querySelector('svg.chart')).not.toBeNull();
+    await click(byText('.seg button', '1 year')); // nothing logged in the last year: still a line, up to today
+    expect(host.querySelector('svg.chart')).not.toBeNull();
+  });
+
+  it('logs a value in the side panel and the history updates right away', async () => {
+    await mount(withWorth(), (p) => <NetWorth {...p} />);
+    await click(byText('button.li', 'Checking'));
+    const panel = host.querySelector('.scrim.drawer');
+    expect(panel.querySelectorAll('.hist')).toHaveLength(2);
+    await type(panel.querySelector('input[aria-label="Date"]'), '2025-09-01');
+    await type(panel.querySelector('input[aria-label="Amount"]'), '4200');
+    await submit(panel.querySelector('form.log-box'));
+    expect(latest.assets[0].history).toHaveLength(3);
+    expect(latest.assets[0].type).toBe('Asset');
+    expect(host.querySelectorAll('.scrim.drawer .hist')).toHaveLength(3);
+    expect(host.querySelector('.big-num').textContent).toBe('$4,200.00');
+  });
+
+  it('deletes a history entry with undo, and marks an account as cash', async () => {
+    await mount(withWorth(), (p) => <NetWorth {...p} />);
+    await click(byText('button.li', 'Checking'));
+    await click(host.querySelector('.scrim.drawer .hist .del')); // newest: Jun 1
+    expect(latest.assets[0].history.map((h) => h.value)).toEqual([1000]);
+    await click(byText('.toast button', 'Undo'));
+    expect(latest.assets[0].history.map((h) => h.value)).toEqual([1000, 3000]);
+    await click(host.querySelector('.scrim.drawer input[type="checkbox"]'));
+    expect(latest.assets[0].cash).toBe(true);
+  });
+
+  it('sets APR and payment on a debt', async () => {
+    await mount(withWorth(), (p) => <NetWorth {...p} />);
+    await click(byText('button.li', 'Card'));
+    expect(host.querySelector('.scrim.drawer').textContent).toContain('latest payment from Budget ($150.00');
+    await type(host.querySelector('#wi-apr'), '22.9');
+    await type(host.querySelector('#wi-pay'), '200');
+    expect(latest.debts[0]).toMatchObject({ apr: 22.9, payment: 200 });
+  });
+
+  it('adds an asset with its value and opens it', async () => {
+    await mount(withWorth(), (p) => <NetWorth {...p} />);
+    await click(byText('.page-head button', 'Add asset'));
+    await type(host.querySelector('#ni-name'), 'Brokerage');
+    await type(host.querySelector('#ni-val'), '2500');
+    await submit(host.querySelector('.scrim form'));
+    expect(latest.assets.at(-1)).toMatchObject({ label: 'Brokerage', history: [{ value: 2500 }] });
+    expect(host.querySelector('.scrim.drawer h2').textContent).toBe('Brokerage');
+  });
+
+  it('asks before deleting an item and can undo', async () => {
+    await mount(withWorth(), (p) => <NetWorth {...p} />);
+    await click(byText('button.li', 'Roth'));
+    await click(byText('.scrim.drawer button', 'Delete asset'));
+    await click(byText('.scrim:not(.drawer) button', 'Delete asset'));
+    expect(latest.assets.map((a) => a.label)).toEqual(['Checking']);
+    await click(byText('.toast button', 'Undo'));
+    expect(latest.assets.map((a) => a.label)).toEqual(['Checking', 'Roth']);
+  });
+});
+
+describe('goals page', () => {
+  it('creates a goal linked to a bucket and counts what was saved there', async () => {
+    await mount(withWorth(), (p) => <Goals {...p} />);
+    await click(byText('.page-head button', 'New goal'));
+    await type(host.querySelector('#g-name'), 'Retire');
+    await type(host.querySelector('#g-target'), '1000');
+    const sel = host.querySelector('#g-link');
+    await act(async () => {
+      sel.value = 'roth';
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await submit(host.querySelector('.scrim form'));
+    expect(latest.savingsGoals[0]).toMatchObject({ label: 'Retire', target: 1000, saved: 0, bucketId: 'roth' });
+    expect(byText('.goal', 'Retire').textContent).toContain('$500'); // 500 saved into Roth this month
+  });
+
+  it('adds cash to a manual goal and undoes it', async () => {
+    const d = withWorth();
+    d.savingsGoals.push({ id: 5, label: 'Laptop', target: 1800, saved: 100 });
+    await mount(d, (p) => <Goals {...p} />);
+    await click(byText('.goal button', 'Add cash'));
+    await type(host.querySelector('.goal input'), '40');
+    await submit(host.querySelector('.goal form'));
+    expect(latest.savingsGoals[0].saved).toBe(140);
+    await click(byText('.toast button', 'Undo'));
+    expect(latest.savingsGoals[0].saved).toBe(100);
+  });
+
+  it('plans the payoff, using the Budget payment when none is set', async () => {
+    await mount(withWorth(), (p) => <Goals {...p} />);
+    const planner = byText('.card', 'Debt payoff planner');
+    expect(planner.textContent).toContain('latest from Budget');
+    expect(planner.textContent).toContain('Debt-free by');
+    expect(planner.textContent).toContain('8 months'); // 1200 / 150 at 0%
+  });
+
+  it('explains when there are no debts', async () => {
+    await mount(sample(), (p) => <Goals {...p} />);
+    expect(byText('.card', 'Debt payoff planner').textContent).toContain('No debts to plan for');
+  });
+});
+
+describe('phone app tab', () => {
+  it('explains how to install on iPhone and Android', async () => {
+    window.location.hash = '#/settings/install';
+    await mount(sample(), (p) => <Settings {...p} user={user} theme="light" onTheme={() => {}} replaceAll={async () => {}} writesEnabled={false} beforeSignOut={async () => {}} />);
+    expect(host.textContent).toContain('Add to Home Screen');
+    expect(host.textContent).toContain('Add transaction');
+  });
+});
+
+describe('analytics page', () => {
+  it('shows figures, breakdowns and filters by month', async () => {
+    await mount(withWorth(), (p) => <Analytics {...p} />);
+    expect(host.querySelector('h1').textContent).toBe(Y);
+    expect(byText('.fig', 'Income').textContent).toContain('$2,450');
+    const where = byText('.card', 'Where the money went');
+    expect(where.textContent).toContain('Housing');
+    expect(where.textContent).not.toContain('Roth');
+    expect(byText('.card', 'Where savings went').textContent).toContain('Roth IRA');
+    expect(byText('.fig', 'Cash runway').textContent).toContain('Mark your cash accounts');
+    const month = host.querySelector('select[aria-label="Month"]');
+    await act(async () => {
+      month.value = String((M + 1) % 12);
+      month.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(host.querySelector('h1').textContent).toBe(`${MONTHS[(M + 1) % 12]} ${Y}`);
+    expect(byText('.fig', 'Income').textContent).toContain('$0');
+  });
+
+  it('works out cash runway from cash accounts', async () => {
+    const d = withWorth();
+    d.assets[0].cash = true;
+    await mount(d, (p) => <Analytics {...p} />);
+    expect(byText('.fig', 'Cash runway').textContent).toMatch(/\d+\.\d mo/);
   });
 });

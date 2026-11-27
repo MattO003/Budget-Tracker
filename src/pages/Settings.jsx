@@ -8,11 +8,13 @@ import Icon from '../components/Icon.jsx';
 import Modal from '../components/Modal.jsx';
 import { useToast } from '../components/Toasts.jsx';
 import SettingsCategories from './SettingsCategories.jsx';
+import { devicePlatform, useInstall } from '../lib/install.js';
 
 const TABS = [
   ['categories', 'Categories'],
   ['backup', 'Backup'],
   ['appearance', 'Appearance'],
+  ['install', 'Phone app'],
   ['account', 'Account'],
 ];
 
@@ -206,6 +208,50 @@ function AppearanceTab({ theme, onTheme }) {
   );
 }
 
+function InstallTab() {
+  const { installed, canInstall, install } = useInstall();
+  const platform = devicePlatform();
+  const toast = useToast();
+  return (
+    <section className="card pad stack tight measure">
+      <h2>Put Financial OS on your home screen</h2>
+      <p className="muted">
+        It installs like a regular app: its own icon, full screen with no browser bars, and it opens straight to your budget. Nothing
+        to download from the App Store, and it uses the same account and data.
+      </p>
+      {installed ? (
+        <div className="banner info"><Icon name="check" size={16} /><span>You’re using the installed app.</span></div>
+      ) : canInstall ? (
+        <div>
+          <button className="btn primary" type="button" onClick={async () => (await install()) && toast('Installed. Look for Financial OS on your home screen.')}>
+            <Icon name="download" size={16} /> Install the app
+          </button>
+        </div>
+      ) : null}
+      <div className="grid-2">
+        <div className={`card flat pad ${platform === 'ios' ? 'on' : ''}`}>
+          <h3>iPhone or iPad</h3>
+          <ol className="steps">
+            <li>Open the site in Safari</li>
+            <li>Tap the Share button</li>
+            <li>Tap <b>Add to Home Screen</b></li>
+          </ol>
+        </div>
+        <div className={`card flat pad ${platform === 'android' ? 'on' : ''}`}>
+          <h3>Android</h3>
+          <ol className="steps">
+            <li>Open the site in Chrome</li>
+            <li>Tap the ⋮ menu</li>
+            <li>Tap <b>Install app</b> (or <b>Add to Home screen</b>)</li>
+          </ol>
+          <p className="muted small" style={{ marginTop: 8 }}>Long-press the icon for an <b>Add transaction</b> shortcut.</p>
+        </div>
+      </div>
+      <p className="faint small">On a computer, Chrome and Edge show an install icon at the right end of the address bar.</p>
+    </section>
+  );
+}
+
 function AccountTab({ user, beforeSignOut }) {
   return (
     <section className="card pad stack tight measure">
@@ -263,6 +309,7 @@ export default function Settings({ data, update, user, theme, onTheme, replaceAl
       {tab === 'categories' && <SettingsCategories data={data} update={update} />}
       {tab === 'backup' && <BackupTab data={data} replaceAll={replaceAll} writesEnabled={writesEnabled} />}
       {tab === 'appearance' && <AppearanceTab theme={theme} onTheme={onTheme} />}
+      {tab === 'install' && <InstallTab />}
       {tab === 'account' && <AccountTab user={user} beforeSignOut={beforeSignOut} />}
     </div>
   );
