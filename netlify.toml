@@ -1,0 +1,10 @@
+# Netlify build settings (these override the ones in the Netlify dashboard).
+# The app is built with Vite; the deployed site is the dist/ folder.
+# Tests run first, so a failing test stops the deploy and the current site stays up.
+[build]
+  command = "npm test && npm run build"
+  publish = "dist"
+
+[build.environment]
+  # Vite needs Node 20.19+ (or 22.12+).
+  NODE_VERSION = "22"
